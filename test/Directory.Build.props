@@ -1,0 +1,7 @@
+<Project>
+	<PropertyGroup>
+		<!-- Test-level shared settings -->
+		<IsTestProject>true</IsTestProject>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+</Project>
