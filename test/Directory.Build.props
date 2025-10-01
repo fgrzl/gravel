@@ -1,0 +1,9 @@
+<Project>
+	<PropertyGroup>
+		<!-- Test-level shared settings -->
+		<IsTestProject>true</IsTestProject>
+		<Nullable>enable</Nullable>
+		<RootNamespace>Gravel</RootNamespace>
+		<NoWarn>$(NoWarn);IDE1006</NoWarn>
+	</PropertyGroup>
+</Project>

@@ -1,0 +1,77 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.0.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gravel", "src\Gravel\Gravel.csproj", "{A1B2C3D4-E5F6-47A8-9BCD-0123456789AB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gravel.Tests", "test\Gravel.Tests\Gravel.Tests.csproj", "{B2C3D4E5-F6A7-48B9-ABCD-1234567890BC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".items", ".items", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+		.gitignore = .gitignore
+		copilot_instructions.md = copilot_instructions.md
+		Directory.Build.props = Directory.Build.props
+		GitVersion.yml = GitVersion.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{69AE3160-DC30-4892-A346-FF57E2108801}"
+	ProjectSection(SolutionItems) = preProject
+		.github\dependabot.yml = .github\dependabot.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{700F0EC7-E685-49CA-AE12-C78B1648ED98}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\ci.yml = .github\workflows\ci.yml
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gravel.Benchmark", "benchmark\Gravel.Benchmark\Gravel.Benchmark.csproj", "{ABC4AF14-CA6F-4CFA-AA19-8AE47070D4AD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{87A24E6F-8075-45EB-B8FF-303A757FD3B8}"
+	ProjectSection(SolutionItems) = preProject
+		test\Directory.Build.props = test\Directory.Build.props
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{1D3B2529-4BC8-48CD-9E1D-863229FDB23F}"
+	ProjectSection(SolutionItems) = preProject
+		src\Directory.Build.props = src\Directory.Build.props
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "benchmark", "benchmark", "{DE984C17-BDD2-4D14-A443-6C2E9A376F13}"
+	ProjectSection(SolutionItems) = preProject
+		benchmark\Directory.Build.props = benchmark\Directory.Build.props
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A1B2C3D4-E5F6-47A8-9BCD-0123456789AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-47A8-9BCD-0123456789AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-47A8-9BCD-0123456789AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-47A8-9BCD-0123456789AB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2C3D4E5-F6A7-48B9-ABCD-1234567890BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2C3D4E5-F6A7-48B9-ABCD-1234567890BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2C3D4E5-F6A7-48B9-ABCD-1234567890BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2C3D4E5-F6A7-48B9-ABCD-1234567890BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ABC4AF14-CA6F-4CFA-AA19-8AE47070D4AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ABC4AF14-CA6F-4CFA-AA19-8AE47070D4AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ABC4AF14-CA6F-4CFA-AA19-8AE47070D4AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ABC4AF14-CA6F-4CFA-AA19-8AE47070D4AD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{69AE3160-DC30-4892-A346-FF57E2108801} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{700F0EC7-E685-49CA-AE12-C78B1648ED98} = {69AE3160-DC30-4892-A346-FF57E2108801}
+		{87A24E6F-8075-45EB-B8FF-303A757FD3B8} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{1D3B2529-4BC8-48CD-9E1D-863229FDB23F} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{DE984C17-BDD2-4D14-A443-6C2E9A376F13} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5E9E1036-441C-4E76-A9B5-60F0BAE54C78}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,7 @@
+<Project>
+	<PropertyGroup>
+		<!-- Benchmark-level shared settings -->
+		<Nullable>enable</Nullable>
+		<NoWarn>$(NoWarn);IDE1006</NoWarn>
+	</PropertyGroup>
+</Project>

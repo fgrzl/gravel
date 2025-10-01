@@ -1,0 +1,10 @@
+<Project>
+	<PropertyGroup>
+		<!-- Shared build properties for the repository -->
+		<Company>fgrzl</Company>
+		<Authors>smiggleworth</Authors>
+		<Nullable>enable</Nullable>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<LangVersion>latest</LangVersion>
+	</PropertyGroup>
+</Project>
