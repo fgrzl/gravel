@@ -1,16 +1,8 @@
 using System.Buffers.Binary;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Linq;
 
 namespace Gravel;
-
-public static class LexKeyConstants
-{
-    public const byte Separator = 0x00;
-    public const byte EndMarker = 0xFF;
-}
 
 /// <summary>
 ///     Represents an encoded key optimized for lexicographic sorting.
@@ -262,25 +254,5 @@ public readonly struct LexKey(byte[] bytes)
 
             return (int)hash;
         }
-    }
-}
-
-/// <summary>
-///     JSON converter for LexKey (hex string).
-/// </summary>
-public class LexKeyJsonConverter : JsonConverter<LexKey>
-{
-    public override LexKey Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        if (reader.TokenType == JsonTokenType.Null)
-            return LexKey.Empty;
-
-        var hex = reader.GetString() ?? "";
-        return LexKey.FromHexString(hex);
-    }
-
-    public override void Write(Utf8JsonWriter writer, LexKey value, JsonSerializerOptions options)
-    {
-        writer.WriteStringValue(value.ToHexString());
     }
 }

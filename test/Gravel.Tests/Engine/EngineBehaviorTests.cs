@@ -21,7 +21,7 @@ namespace Gravel.Engine.Tests
     {
         static ReadOnlyMemory<byte> B(string s) => Encoding.UTF8.GetBytes(s);
 
-        static IGravelEngine CreateEngine(ISstFactory sstFactory, IWalFactory walFactory, GravelOptions? opts = null)
+        static IDbEngine CreateEngine(ISstFactory sstFactory, IWalFactory walFactory, GravelOptions? opts = null)
         {
             var options = Options.Create(opts ?? new GravelOptions
             {
