@@ -17,9 +17,9 @@ public static partial class Log
     [LoggerMessage(EventId = 1002, Level = LogLevel.Debug, Message = "Appended record seq {Seq}")]
     public static partial void PutSeq(ILogger logger, ulong seq);
 
-    // Engine / operational events (2000-2999)
+    // DbEngine / operational events (2000-2999)
     [LoggerMessage(EventId = 2000, Level = LogLevel.Information,
-        Message = "Engine created. DBPath={DbPath} WAL={WalDir} SST={SstDir} Levels={Levels}")]
+        Message = "DbEngine created. DBPath={DbPath} WAL={WalDir} SST={SstDir} Levels={Levels}")]
     public static partial void EngineCreated(ILogger logger, string dbPath, string walDir, string sstDir, int levels);
 
     [LoggerMessage(EventId = 2001, Level = LogLevel.Debug, Message = "Loaded SST file level={Level} path='{Path}'")]

@@ -19,7 +19,7 @@ public class EngineCompactionVisibilityTests
         return Encoding.UTF8.GetBytes(s);
     }
 
-    static IGravelEngine CreateEngine(
+    static IDbEngine CreateEngine(
         InMemorySstFactory sstFactory,
         InMemoryWalFactory walFactory,
         GravelOptions? opts = null)
@@ -35,7 +35,7 @@ public class EngineCompactionVisibilityTests
 
         // Use real worker; compaction runs asynchronously
         var worker = new CompactionWorker(double.MaxValue);
-        return new Engine(options, walFactory, sstFactory, worker, NullLogger<Engine>.Instance);
+        return new DbEngine(options, walFactory, sstFactory, worker, NullLogger<DbEngine>.Instance);
     }
 
     static InMemorySstFactory SstFactory()

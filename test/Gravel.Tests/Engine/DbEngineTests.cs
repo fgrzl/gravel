@@ -15,9 +15,9 @@ using Xunit;
 
 namespace Gravel.Engine;
 
-public class EngineTests
+public class DbEngineTests
 {
-    static IGravelEngine CreateEngine(
+    static IDbEngine CreateEngine(
         InMemorySstFactory sstFactory,
         InMemoryWalFactory walFactory,
         GravelOptions? opts = null)
@@ -32,7 +32,7 @@ public class EngineTests
 
         // create a compaction worker for tests that runs tasks in background
         var worker = new CompactionWorker(double.MaxValue);
-        return new Engine(options, walFactory, sstFactory, worker, NullLogger<Engine>.Instance);
+        return new DbEngine(options, walFactory, sstFactory, worker, NullLogger<DbEngine>.Instance);
     }
 
     static InMemorySstFactory SstFactory()

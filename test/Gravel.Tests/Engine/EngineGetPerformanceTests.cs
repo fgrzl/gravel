@@ -20,7 +20,7 @@ public class EngineGetPerformanceTests
         return Encoding.UTF8.GetBytes(s);
     }
 
-    static Engine CreateEngine(
+    static DbEngine CreateEngine(
         InMemorySstFactory sstFactory,
         InMemoryWalFactory walFactory,
         GravelOptions? opts = null)
@@ -34,7 +34,7 @@ public class EngineGetPerformanceTests
         });
 
         var worker = new CompactionWorker(double.MaxValue);
-        return new Engine(options, walFactory, sstFactory, worker, NullLogger<Engine>.Instance);
+        return new DbEngine(options, walFactory, sstFactory, worker, NullLogger<DbEngine>.Instance);
     }
 
     [Fact]
@@ -54,10 +54,10 @@ public class EngineGetPerformanceTests
         await eng.DeleteRangeAsync(B("a"), B("zzzz"));
 
         // Act
-        // Capture memtable from engine via reflection-free route by starting a scan to identify same instance
+        // Capture memtable from dbEngine via reflection-free route by starting a scan to identify same instance
         // Instead, we can infer behavior by calling Get and checking that Scan() wasn't enumerated
         // We rely on internal diagnostic counter ScanEnumerations in MemTable
-        var memTableField = typeof(Engine).GetField("_memTable", BindingFlags.NonPublic | BindingFlags.Instance);
+        var memTableField = typeof(DbEngine).GetField("_memTable", BindingFlags.NonPublic | BindingFlags.Instance);
         memTableField.Should().NotBeNull();
         var mem = (MemTable)memTableField!.GetValue(eng)!;
         var before = mem.ScanEnumerations;

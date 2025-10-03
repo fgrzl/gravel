@@ -10,7 +10,7 @@ namespace Gravel.Engine.Compaction;
 /// <summary>
 ///     Compaction task that merges a set of SST files into a single output SST.
 ///     Runs the merge/writer in the background and invokes a completion callback
-///     to let the Engine update levels and remove old files.
+///     to let the DbEngine update levels and remove old files.
 ///     This implementation performs the full compaction work inside the task and
 ///     cooperates with the CompactionWorker by being enqueued and awaited via
 ///     the worker's lifecycle (PrepareAsync/CompleteAsync).

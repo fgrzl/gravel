@@ -19,7 +19,7 @@ public class EngineMixedTombstoneTests
         return Encoding.UTF8.GetBytes(s);
     }
 
-    static Engine CreateEngineWithFactory(TestSstFactory factory)
+    static DbEngine CreateEngineWithFactory(TestSstFactory factory)
     {
         var opts = Options.Create(new GravelOptions
         {
@@ -31,7 +31,7 @@ public class EngineMixedTombstoneTests
         var walFactory = new InMemoryWalFactory(Options.Create(new InMemoryWalOptions()))
             as IWalFactory;
         var worker = new CompactionWorker(double.MaxValue);
-        return new Engine(opts, walFactory, factory, worker, NullLogger<Engine>.Instance);
+        return new DbEngine(opts, walFactory, factory, worker, NullLogger<DbEngine>.Instance);
     }
 
     [Fact]

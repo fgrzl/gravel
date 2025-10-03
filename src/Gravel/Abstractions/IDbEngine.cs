@@ -1,6 +1,6 @@
 namespace Gravel.Abstractions;
 
-public interface IGravelEngine : IAsyncDisposable, IDisposable
+public interface IDbEngine : IAsyncDisposable, IDisposable
 {
     /// <summary>
     ///     Initialize engine (load SST levels, replay WAL). Safe to call multiple times.

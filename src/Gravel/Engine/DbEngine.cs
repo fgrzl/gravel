@@ -13,13 +13,13 @@ using Microsoft.Extensions.Options;
 
 namespace Gravel.Engine;
 
-class Engine : IGravelEngine
+class DbEngine : IDbEngine
 {
     readonly SemaphoreSlim _commitGate = new(1, 1);
     readonly ICompactionWorker _compactionWorker;
     readonly SemaphoreSlim _initGate = new(1, 1);
     readonly Levels _levels;
-    readonly ILogger<Engine> _logger;
+    readonly ILogger<DbEngine> _logger;
     readonly GravelOptions _options;
     readonly string _sstDir;
     readonly ISstFactory _sstFactory;
@@ -33,12 +33,12 @@ class Engine : IGravelEngine
     long _nextTxnId;
     ulong _seq; // in-memory sequence allocator base
 
-    public Engine(
+    public DbEngine(
         IOptions<GravelOptions> options,
         IWalFactory walFactory,
         ISstFactory sstFactory,
         ICompactionWorker compactionWorker,
-        ILogger<Engine> logger)
+        ILogger<DbEngine> logger)
     {
         _options = options.Value;
 
@@ -71,7 +71,7 @@ class Engine : IGravelEngine
             if (_initialized) return;
 
             using var act = TelemetryHelper.StartActivityScope(TelemetrySources.ActivitySource, _logger,
-                "Engine.Initialize",
+                "DbEngine.Initialize",
                 ActivityKind.Internal,
                 new KeyValuePair<string, object?>("db.path", _options.DatabasePath),
                 new KeyValuePair<string, object?>("wal.dir", _walDir),

@@ -6,7 +6,7 @@ using Gravel.Internals;
 
 namespace Gravel.Engine;
 
-class Transaction(Engine engine, ulong txnId, ulong beginSequence) : IGravelTransaction
+class Transaction(DbEngine dbEngine, ulong txnId, ulong beginSequence) : IGravelTransaction
 {
     readonly List<Mutation> _staged = [];
     bool _completed; // committed or rolled back
@@ -81,14 +81,14 @@ class Transaction(Engine engine, ulong txnId, ulong beginSequence) : IGravelTran
             };
         }
 
-        return engine.GetAsync(key, ct);
+        return dbEngine.GetAsync(key, ct);
     }
 
     public async ValueTask CommitAsync(CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         if (_completed) throw new GravelException("Transaction already completed");
-        await engine.CommitTransactionAsync(this, _staged, ct).ConfigureAwait(false);
+        await dbEngine.CommitTransactionAsync(this, _staged, ct).ConfigureAwait(false);
         _completed = true;
     }
 

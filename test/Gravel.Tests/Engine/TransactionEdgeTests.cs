@@ -16,7 +16,7 @@ namespace Gravel.Engine;
 public class TransactionEdgeTests
 {
     // Convenience overload that uses a no-op compaction worker for tests.
-    static IGravelEngine CreateEngine(
+    static IDbEngine CreateEngine(
         InMemorySstFactory sstFactory,
         InMemoryWalFactory walFactory,
         GravelOptions? opts = null)
@@ -24,7 +24,7 @@ public class TransactionEdgeTests
         return CreateEngine(sstFactory, walFactory, new NoopCompactionWorker(), opts);
     }
 
-    static IGravelEngine CreateEngine(
+    static IDbEngine CreateEngine(
         InMemorySstFactory sstFactory,
         InMemoryWalFactory walFactory,
         ICompactionWorker worker,
@@ -37,7 +37,7 @@ public class TransactionEdgeTests
             SstLevels = 2,
             WalSyncOnCommit = true
         });
-        return new Engine(options, walFactory, sstFactory, worker, NullLogger<Engine>.Instance);
+        return new DbEngine(options, walFactory, sstFactory, worker, NullLogger<DbEngine>.Instance);
     }
 
     static InMemorySstFactory SstFactory()
