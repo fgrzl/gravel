@@ -3,7 +3,7 @@ using System.Text;
 using BenchmarkDotNet.Attributes;
 using Gravel.Internals.Indexes;
 
-namespace Gravel.Benchmark.Internals.Indexes;
+namespace Gravel.Benchmarks.Internals.Indexes;
 
 [ShortRunJob]
 [MemoryDiagnoser]

@@ -1,3 +1,5 @@
+using Gravel.Abstractions;
+
 namespace Gravel;
 
 class ByteArrayComparer : IComparer<byte[]>

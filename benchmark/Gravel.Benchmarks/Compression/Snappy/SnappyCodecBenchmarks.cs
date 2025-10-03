@@ -6,7 +6,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Order;
 using Gravel.Compression.Snappy;
 
-namespace Gravel.Benchmark.Compression.Snappy;
+namespace Gravel.Benchmarks.Compression.Snappy;
 
 [MemoryDiagnoser]
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]

@@ -1,4 +1,4 @@
-namespace Gravel;
+namespace Gravel.Abstractions;
 
 public interface IGravelFactory
 {

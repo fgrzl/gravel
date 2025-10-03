@@ -4,7 +4,7 @@ using BenchmarkDotNet.Attributes;
 using Gravel.Abstractions;
 using Gravel.Engine;
 
-namespace Gravel.Benchmark.Engine;
+namespace Gravel.Benchmarks.Engine;
 
 [ShortRunJob]
 [MemoryDiagnoser]

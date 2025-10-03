@@ -1,7 +1,7 @@
 using BenchmarkDotNet.Attributes;
 using Gravel.Internals.Filters;
 
-namespace Gravel.Benchmark.Internals.Filters;
+namespace Gravel.Benchmarks.Internals.Filters;
 
 [ShortRunJob]
 public class BloomFilterBenchmarks

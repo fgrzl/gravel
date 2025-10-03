@@ -6,7 +6,7 @@ using Gravel.Abstractions;
 using Gravel.Storage.FileSystem.Wal;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Gravel.Benchmark.Storage.FileSystem.Wal;
+namespace Gravel.Benchmarks.Storage.FileSystem.Wal;
 
 [ShortRunJob]
 [MemoryDiagnoser]

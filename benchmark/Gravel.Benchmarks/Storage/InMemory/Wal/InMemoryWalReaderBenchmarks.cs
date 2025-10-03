@@ -5,7 +5,7 @@ using BenchmarkDotNet.Attributes;
 using Gravel.Abstractions;
 using Gravel.Storage.InMemory.Wal;
 
-namespace Gravel.Benchmark.Storage.InMemory.Wal;
+namespace Gravel.Benchmarks.Storage.InMemory.Wal;
 
 [ShortRunJob]
 [MemoryDiagnoser]

@@ -1,6 +1,6 @@
 using BenchmarkDotNet.Running;
 
-namespace Gravel.Benchmark;
+namespace Gravel.Benchmarks;
 
 public class Program
 {

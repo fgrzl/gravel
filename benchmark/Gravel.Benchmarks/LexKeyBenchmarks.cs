@@ -2,7 +2,7 @@ using System;
 using System.Text;
 using BenchmarkDotNet.Attributes;
 
-namespace Gravel.Benchmark;
+namespace Gravel.Benchmarks;
 
 [ShortRunJob]
 [MemoryDiagnoser]

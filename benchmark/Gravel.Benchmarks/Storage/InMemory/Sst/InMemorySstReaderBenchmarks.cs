@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using Gravel.Storage.InMemory.Sst;
 
-namespace Gravel.Benchmark.Storage.InMemory.Sst;
+namespace Gravel.Benchmarks.Storage.InMemory.Sst;
 
 [ShortRunJob]
 [MemoryDiagnoser]
