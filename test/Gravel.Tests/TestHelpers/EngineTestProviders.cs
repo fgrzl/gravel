@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Gravel.Compression;
+using Gravel.Engine.Compaction;
 using Gravel.Storage.FileSystem.Sst;
 using Gravel.Storage.FileSystem.Wal;
 using Gravel.Storage.InMemory.Sst;
@@ -20,7 +21,7 @@ public static class EngineTestProviders
         // In-memory providers
         var inSst = new InMemorySstFactory(Options.Create(new InMemorySstOptions()));
         var inWal = new InMemoryWalFactory(Options.Create(new InMemoryWalOptions()));
-        yield return ["in-memory", inSst, inWal, null];
+        yield return ["in-memory", inSst, inWal, new NoopCompactionWorker()];
 
         // File-system providers (temp dir per run)
         var temp = Path.Combine(Path.GetTempPath(), "gravel-test-db-" + Guid.NewGuid().ToString("N"));
