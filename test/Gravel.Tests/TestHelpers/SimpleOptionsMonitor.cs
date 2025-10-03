@@ -1,7 +1,7 @@
 using System;
 using Microsoft.Extensions.Options;
 
-namespace Gravel.Tests.TestHelpers;
+namespace Gravel.TestHelpers;
 
 sealed class SimpleOptionsMonitor<T> : IOptionsMonitor<T> where T : class
 {

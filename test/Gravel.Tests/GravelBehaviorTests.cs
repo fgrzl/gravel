@@ -10,10 +10,10 @@ using Gravel.Abstractions.Storage.Sst;
 using Gravel.Abstractions.Storage.Wal;
 using Gravel.Engine;
 using Gravel.Engine.Compaction;
+using Gravel.TestHelpers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
-using Gravel.Tests.TestHelpers;
 
 namespace Gravel;
 
@@ -32,7 +32,7 @@ public class GravelBehaviorTests
         });
 
         var worker = new CompactionWorker(double.MaxValue);
-        return new Engine(options, walFactory, sstFactory, worker, NullLogger<Engine>.Instance);
+        return new DbEngine(options, walFactory, sstFactory, worker, NullLogger<Engine>.Instance);
     }
 
     [Theory]

@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -8,14 +6,12 @@ using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Sst;
 using Gravel.Abstractions.Storage.Wal;
 using Gravel.Engine.Compaction;
-using Gravel.Storage.InMemory.Sst;
-using Gravel.Storage.InMemory.Wal;
+using Gravel.TestHelpers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
-using Gravel.Tests.TestHelpers;
 
-namespace Gravel.Engine.Tests
+namespace Gravel.Engine
 {
     public class EngineBehaviorTests
     {

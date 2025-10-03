@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Text;
-using System.Linq;
 
 namespace Gravel;
 
@@ -9,9 +8,9 @@ namespace Gravel;
 /// </summary>
 public readonly struct LexKey(byte[] bytes)
 {
-    readonly byte[] _bytes = bytes ?? Array.Empty<byte>();
+    readonly byte[] _bytes = bytes ?? [];
 
-    public static readonly LexKey Empty = new(Array.Empty<byte>());
+    public static readonly LexKey Empty = new([]);
     public static readonly LexKey Last = Encode(LexKeyConstants.EndMarker);
 
     public ReadOnlyMemory<byte> Bytes => _bytes;
@@ -82,7 +81,7 @@ public readonly struct LexKey(byte[] bytes)
         switch (value)
         {
             case null:
-                return new byte[] { LexKeyConstants.Separator };
+                return [LexKeyConstants.Separator];
             case string s:
                 return Encoding.UTF8.GetBytes(s);
             case byte[] b:
@@ -104,14 +103,14 @@ public readonly struct LexKey(byte[] bytes)
             case ushort us:
                 return EncodeUInt64(us);
             case byte ub:
-                return new byte[] { ub };
+                return [ub];
             case float f:
                 // float32 uses 4-byte canonical encoding per tests/spec
                 return EncodeFloat32(f);
             case double d:
                 return EncodeFloat64(d);
             case bool b:
-                return new byte[] { (byte)(b ? 1 : 0) };
+                return [(byte)(b ? 1 : 0)];
             case DateTime dt:
                 // Unix nanoseconds from epoch
                 var unixNanos = (dt.ToUniversalTime().Ticks - DateTime.UnixEpoch.Ticks) * 100L;
@@ -129,7 +128,6 @@ public readonly struct LexKey(byte[] bytes)
     {
         var size = 0;
         foreach (var part in parts)
-        {
             switch (part)
             {
                 case null: size += 1; break;
@@ -144,7 +142,6 @@ public readonly struct LexKey(byte[] bytes)
                 case LexKey k: size += k.Bytes.Length; break;
                 default: size += 1; break;
             }
-        }
 
         // separators between parts
         if (parts.Length > 1) size += parts.Length - 1;
@@ -221,9 +218,8 @@ public readonly struct LexKey(byte[] bytes)
         var y = b._bytes;
         var min = Math.Min(x.Length, y.Length);
         for (var i = 0; i < min; i++)
-        {
-            if (x[i] != y[i]) return x[i] < y[i] ? -1 : 1;
-        }
+            if (x[i] != y[i])
+                return x[i] < y[i] ? -1 : 1;
 
         if (x.Length == y.Length) return 0;
         return x.Length < y.Length ? -1 : 1;
@@ -245,7 +241,7 @@ public readonly struct LexKey(byte[] bytes)
         // FNV-1a 32-bit
         unchecked
         {
-            uint hash = 2166136261u;
+            var hash = 2166136261u;
             foreach (var b in _bytes)
             {
                 hash ^= b;
