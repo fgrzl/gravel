@@ -8,7 +8,10 @@ namespace Gravel.Internals.Indexes;
 
 public class SparseIndexTests
 {
-    static byte[] B(string s) => Encoding.UTF8.GetBytes(s);
+    static byte[] B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
 
     [Fact]
     public void should_add_samples_and_iterate_in_order_given_ascending_keys_when_entries()

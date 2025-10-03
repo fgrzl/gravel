@@ -12,12 +12,25 @@ namespace Gravel.Engine.Compaction;
 
 public class CompactorDeleteKeyTests
 {
-    static ulong _seq;
-    static byte[] B(string s) => Encoding.UTF8.GetBytes(s);
+    static byte[] B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
 
-    static DbEntry P(string k, string v, ulong seq) => DbEntry.Put(B(k), B(v), seq);
-    static DbEntry DK(string k, ulong seq) => DbEntry.DeleteKey(B(k), seq);
-    static DbEntry DR(string s, string e, ulong seq) => DbEntry.DeleteRange(B(s), B(e), seq);
+    static DbEntry P(string k, string v, ulong seq)
+    {
+        return DbEntry.Put(B(k), B(v), seq);
+    }
+
+    static DbEntry Dk(string k, ulong seq)
+    {
+        return DbEntry.DeleteKey(B(k), seq);
+    }
+
+    static DbEntry Dr(string s, string e, ulong seq)
+    {
+        return DbEntry.DeleteRange(B(s), B(e), seq);
+    }
 
     static SstFile MakeFile(params DbEntry[] entries)
     {
@@ -30,7 +43,7 @@ public class CompactorDeleteKeyTests
     {
         // Arrange: put k@10 then delete k@20
         var f1 = MakeFile(P("k", "v1", 10));
-        var f2 = MakeFile(DK("k", 20));
+        var f2 = MakeFile(Dk("k", 20));
         var files = new List<SstFile> { f1, f2 };
 
         // Act
@@ -49,7 +62,7 @@ public class CompactorDeleteKeyTests
     public async Task should_retain_newer_put_given_put_after_range_tombstone_when_compacting()
     {
         // Arrange: range [a,z)@10 then put x@12 (should survive)
-        var f1 = MakeFile(DR("a", "z", 10));
+        var f1 = MakeFile(Dr("a", "z", 10));
         var f2 = MakeFile(P("x", "vx", 12));
         var files = new List<SstFile> { f1, f2 };
 
@@ -71,7 +84,7 @@ public class CompactorDeleteKeyTests
     {
         // Arrange: put b@10 then range [a,c)@15 masks it
         var f1 = MakeFile(P("b", "v", 10));
-        var f2 = MakeFile(DR("a", "c", 15));
+        var f2 = MakeFile(Dr("a", "c", 15));
         var files = new List<SstFile> { f1, f2 };
 
         // Act

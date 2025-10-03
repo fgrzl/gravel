@@ -7,6 +7,10 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <Compile Remove="D:\packages\.nuget\microsoft.visualstudio.diagnosticshub.benchmarkdotnetdiagnosers\18.0.36421.1\contentFiles\cs\any\BenchmarkProfilerAgentConfig.g.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="BenchmarkDotNet" Version="0.15.3" />
 		<PackageReference Include="Microsoft.Extensions.Options" Version="9.0.9" />
 		<PackageReference Include="Microsoft.VisualStudio.DiagnosticsHub.BenchmarkDotNetDiagnosers" Version="18.0.36421.1" />

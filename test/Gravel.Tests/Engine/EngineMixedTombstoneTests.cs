@@ -1,10 +1,11 @@
 using System;
-using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Gravel.Abstractions;
+using Gravel.Abstractions.Storage.Wal;
 using Gravel.Engine.Compaction;
+using Gravel.Storage.InMemory.Wal;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -13,7 +14,10 @@ namespace Gravel.Engine;
 
 public class EngineMixedTombstoneTests
 {
-    static ReadOnlyMemory<byte> B(string s) => Encoding.UTF8.GetBytes(s);
+    static ReadOnlyMemory<byte> B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
 
     static Engine CreateEngineWithFactory(TestSstFactory factory)
     {
@@ -24,8 +28,8 @@ public class EngineMixedTombstoneTests
             SstLevels = 3,
             WalSyncOnCommit = true
         });
-        var walFactory = new Storage.InMemory.Wal.InMemoryWalFactory(Options.Create(new Storage.InMemory.Wal.InMemoryWalOptions()))
-            as Abstractions.Storage.Wal.IWalFactory;
+        var walFactory = new InMemoryWalFactory(Options.Create(new InMemoryWalOptions()))
+            as IWalFactory;
         var worker = new CompactionWorker(double.MaxValue);
         return new Engine(opts, walFactory, factory, worker, NullLogger<Engine>.Instance);
     }
@@ -36,19 +40,16 @@ public class EngineMixedTombstoneTests
         // Arrange
         var factory = new TestSstFactory();
         // L2 newer delete-key at same seq as put (tie -> delete-key wins), and newer range masking older put
-        factory.Register("/y/sst", 2, "0002.sst", new[]
-        {
+        factory.Register("/y/sst", 2, "0002.sst", [
             DbEntry.DeleteKey(B("b"), 50UL),
             DbEntry.DeleteRange(B("x"), B("z"), 60UL)
-        });
-        factory.Register("/y/sst", 1, "0001.sst", new[]
-        {
-            DbEntry.Put(B("b"), B("vb"), 50UL), // same seq as delete-key
-        });
-        factory.Register("/y/sst", 0, "0000.sst", new[]
-        {
+        ]);
+        factory.Register("/y/sst", 1, "0001.sst", [
+            DbEntry.Put(B("b"), B("vb"), 50UL) // same seq as delete-key
+        ]);
+        factory.Register("/y/sst", 0, "0000.sst", [
             DbEntry.Put(B("y"), B("vy"), 10UL)
-        });
+        ]);
 
         var eng = CreateEngineWithFactory(factory);
         await eng.InitializeAsync();

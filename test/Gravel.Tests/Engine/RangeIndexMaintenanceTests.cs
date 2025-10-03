@@ -7,7 +7,10 @@ namespace Gravel.Engine;
 
 public class RangeIndexMaintenanceTests
 {
-    static ReadOnlyMemory<byte> B(string s) => Encoding.UTF8.GetBytes(s);
+    static ReadOnlyMemory<byte> B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
 
     [Fact]
     public void should_remove_ranges_below_min_sequence_when_compact_by_sequence()
@@ -35,7 +38,7 @@ public class RangeIndexMaintenanceTests
         mt.PutRangeTombstone(B("e").Span, B("f").Span, 30UL);
 
         // remove seq < 25, and specifically remove the 'e' range
-        var removed = mt.RemoveRangesWhere((s,e,seq) => seq < 25UL || s[0] == (byte)'e');
+        var removed = mt.RemoveRangesWhere((s, e, seq) => seq < 25UL || s[0] == (byte)'e');
         // two removed by seq (<25) and one by key ('e') => 3
         removed.Should().Be(3);
 

@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -14,7 +15,10 @@ namespace Gravel.Engine;
 
 public class EngineGetPerformanceTests
 {
-    static ReadOnlyMemory<byte> B(string s) => Encoding.UTF8.GetBytes(s);
+    static ReadOnlyMemory<byte> B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
 
     static Engine CreateEngine(
         InMemorySstFactory sstFactory,
@@ -43,7 +47,7 @@ public class EngineGetPerformanceTests
         await eng.InitializeAsync();
 
         // seed many keys
-        for (int i = 0; i < 2000; i++)
+        for (var i = 0; i < 2000; i++)
             await eng.PutAsync(B($"k{i:D4}"), B("v"));
 
         // add one range tombstone
@@ -53,7 +57,7 @@ public class EngineGetPerformanceTests
         // Capture memtable from engine via reflection-free route by starting a scan to identify same instance
         // Instead, we can infer behavior by calling Get and checking that Scan() wasn't enumerated
         // We rely on internal diagnostic counter ScanEnumerations in MemTable
-        var memTableField = typeof(Engine).GetField("_memTable", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var memTableField = typeof(Engine).GetField("_memTable", BindingFlags.NonPublic | BindingFlags.Instance);
         memTableField.Should().NotBeNull();
         var mem = (MemTable)memTableField!.GetValue(eng)!;
         var before = mem.ScanEnumerations;

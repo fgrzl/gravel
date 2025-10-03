@@ -11,8 +11,15 @@ namespace Gravel.Engine;
 
 public class SstScanSourceTests
 {
-    static ReadOnlyMemory<byte> B(string s) => Encoding.UTF8.GetBytes(s);
-    static DbEntry E(string k, string v, ulong seq) => DbEntry.Put(B(k), B(v), seq);
+    static ReadOnlyMemory<byte> B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
+
+    static DbEntry E(string k, string v, ulong seq)
+    {
+        return DbEntry.Put(B(k), B(v), seq);
+    }
 
     [Fact]
     public async Task should_scan_all_given_no_bounds_when_create_source()

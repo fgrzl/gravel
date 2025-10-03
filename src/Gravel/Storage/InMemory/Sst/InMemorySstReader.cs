@@ -30,7 +30,7 @@ public sealed class InMemorySstReader(InMemorySst sst) : ISstReader
 
     public IReadOnlyList<(ReadOnlyMemory<byte> Start, ReadOnlyMemory<byte> End, ulong Seq)> GetRangeDeletes()
     {
-        return Array.Empty<(ReadOnlyMemory<byte>, ReadOnlyMemory<byte>, ulong)>();
+        return [];
     }
 
     public void Dispose()

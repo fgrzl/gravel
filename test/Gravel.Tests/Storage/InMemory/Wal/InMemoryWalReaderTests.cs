@@ -12,8 +12,11 @@ namespace Gravel.Storage.InMemory.Wal;
 
 public class InMemoryWalReaderTests
 {
-    static IWalFactory Factory(int max = 100, bool shared = true) =>
-        new InMemoryWalFactory(Options.Create(new InMemoryWalOptions { MaxBufferedRecords = max, SharedWriter = shared }));
+    static IWalFactory Factory(int max = 100, bool shared = true)
+    {
+        return new InMemoryWalFactory(Options.Create(new InMemoryWalOptions
+            { MaxBufferedRecords = max, SharedWriter = shared }));
+    }
 
     [Fact]
     public async Task should_replay_records_in_order_given_enqueued_transactions_when_replay()

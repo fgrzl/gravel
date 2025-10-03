@@ -165,9 +165,8 @@ class Engine : IGravelEngine
     {
         await EnsureInitializedAsync(ct);
 
-        // Find newest range tombstone in memtable covering this key using range index (O(log n))
-        ulong coveringRangeSeq = 0;
-        _memTable.TryGetCoveringRange(key.Span, out coveringRangeSeq);
+        // Find latest range tombstone in memtable covering this key using range index (O(log n))
+        _memTable.TryGetCoveringRange(key.Span, out var coveringRangeSeq);
 
         // Check memtable direct entry for this key
         if (_memTable.TryGet(key.Span, out var mtValue, out var mtSeq, out var mtKind))
@@ -236,9 +235,7 @@ class Engine : IGravelEngine
                 // Even if no exact entry, a newer range tombstone in this file may mask lower seq puts
                 var ranges = f.Reader.GetRangeDeletes();
                 foreach (var (rs, re, rseq) in ranges)
-                {
                     if (ByteComparer.Compare(rs.Span, key.Span) <= 0 && ByteComparer.Compare(key.Span, re.Span) < 0)
-                    {
                         if (!haveCandidate || rseq > bestSeq)
                         {
                             bestSeq = rseq;
@@ -246,21 +243,16 @@ class Engine : IGravelEngine
                             bestValue = default;
                             haveCandidate = true;
                         }
-                    }
-                }
             }
         }
 
         if (haveCandidate)
         {
-            if (bestKind == DbEntryKind.Put)
-            {
-                Log.GetHitSst(_logger, key.Length);
-                return bestValue;
-            }
+            if (bestKind != DbEntryKind.Put)
+                return null;
 
-            // masked by delete-key or range in SSTs
-            return null;
+            Log.GetHitSst(_logger, key.Length);
+            return bestValue;
         }
 
         Log.GetMiss(_logger, key.Length);
@@ -374,7 +366,7 @@ class Engine : IGravelEngine
         do
         {
             current = seq;
-            next = Sequence.GetNext(current);
+            next = current + 1L;
         } while (Interlocked.CompareExchange(ref seq, next, current) != current);
 
         return next;
@@ -426,7 +418,7 @@ class Engine : IGravelEngine
                 if (s.Kind == DbEntryKind.DeleteKey && s.Sequence > deleteKeySeq)
                     deleteKeySeq = s.Sequence;
 
-            // find newest visible put for this key
+            // find latest visible put for this key
             ReadOnlyMemory<byte>? valueToEmit = null;
             foreach (var s in sameKey.Where(x => x.Kind == DbEntryKind.Put)
                          .OrderByDescending(x => x.Sequence).ThenBy(x => x.Precedence))
@@ -829,6 +821,8 @@ class Engine : IGravelEngine
                 case MutationOp.Insert: _memTable.Put(m.Key.Span, m.Value.Span, seq); break;
                 case MutationOp.Delete: _memTable.PutDeleteTombstone(m.Key.Span, seq); break;
                 case MutationOp.DeleteRange: _memTable.PutRangeTombstone(m.Key.Span, m.RangeEnd.Span, seq); break;
+                default:
+                    throw new GravelInvalidOperationException("Unknown mutation op");
             }
 
             TelemetrySources.Commits.Add(1);

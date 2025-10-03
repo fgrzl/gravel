@@ -10,8 +10,11 @@ namespace Gravel.Storage.InMemory.Wal;
 
 public class InMemoryWalWriterTests
 {
-    static IWalFactory Factory(int max = 1000, bool shared = true) =>
-        new InMemoryWalFactory(Options.Create(new InMemoryWalOptions { MaxBufferedRecords = max, SharedWriter = shared }));
+    static IWalFactory Factory(int max = 1000, bool shared = true)
+    {
+        return new InMemoryWalFactory(Options.Create(new InMemoryWalOptions
+            { MaxBufferedRecords = max, SharedWriter = shared }));
+    }
 
     [Fact]
     public async Task should_increment_last_sequence_given_multiple_appends_when_commit()

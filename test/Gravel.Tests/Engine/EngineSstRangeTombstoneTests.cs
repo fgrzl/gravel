@@ -1,10 +1,11 @@
 using System;
-using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Gravel.Abstractions;
+using Gravel.Abstractions.Storage.Wal;
 using Gravel.Engine.Compaction;
+using Gravel.Storage.InMemory.Wal;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -13,7 +14,10 @@ namespace Gravel.Engine;
 
 public class EngineSstRangeTombstoneTests
 {
-    static ReadOnlyMemory<byte> B(string s) => Encoding.UTF8.GetBytes(s);
+    static ReadOnlyMemory<byte> B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
 
     static Engine CreateEngineWithFactory(TestSstFactory factory)
     {
@@ -25,8 +29,8 @@ public class EngineSstRangeTombstoneTests
             WalSyncOnCommit = true
         });
         // WAL unused in this test; using in-memory implementation
-        var walFactory = new Storage.InMemory.Wal.InMemoryWalFactory(Options.Create(new Storage.InMemory.Wal.InMemoryWalOptions()))
-            as Abstractions.Storage.Wal.IWalFactory;
+        var walFactory = new InMemoryWalFactory(Options.Create(new InMemoryWalOptions()))
+            as IWalFactory;
         var worker = new CompactionWorker(double.MaxValue);
         return new Engine(opts, walFactory, factory, worker, NullLogger<Engine>.Instance);
     }
@@ -36,14 +40,12 @@ public class EngineSstRangeTombstoneTests
     {
         // Arrange: L1 has a range delete covering [b,d) with higher seq than a put in L0
         var factory = new TestSstFactory();
-        factory.Register("/x/sst", 1, "0001.sst", new[]
-        {
+        factory.Register("/x/sst", 1, "0001.sst", [
             DbEntry.DeleteRange(B("b"), B("d"), 20UL)
-        });
-        factory.Register("/x/sst", 0, "0000.sst", new[]
-        {
+        ]);
+        factory.Register("/x/sst", 0, "0000.sst", [
             DbEntry.Put(B("c"), B("vc"), 10UL)
-        });
+        ]);
 
         var eng = CreateEngineWithFactory(factory);
         await eng.InitializeAsync();

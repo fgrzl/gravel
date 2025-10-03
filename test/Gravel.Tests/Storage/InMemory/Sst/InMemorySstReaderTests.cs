@@ -12,8 +12,15 @@ namespace Gravel.Storage.InMemory.Sst;
 
 public class InMemorySstReaderTests
 {
-    static InMemorySstFactory CreateFactory() => new(Options.Create(new InMemorySstOptions()));
-    static DbEntry E(string k, string v, ulong seq) => DbEntry.Put(Encoding.UTF8.GetBytes(k), Encoding.UTF8.GetBytes(v), seq);
+    static InMemorySstFactory CreateFactory()
+    {
+        return new InMemorySstFactory(Options.Create(new InMemorySstOptions()));
+    }
+
+    static DbEntry E(string k, string v, ulong seq)
+    {
+        return DbEntry.Put(Encoding.UTF8.GetBytes(k), Encoding.UTF8.GetBytes(v), seq);
+    }
 
     static async Task WriteAsync(ISstFactory f, string path, params (string k, string v)[] kv)
     {

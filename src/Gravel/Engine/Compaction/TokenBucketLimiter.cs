@@ -10,9 +10,6 @@ public sealed class TokenBucketLimiter
     long _lastTicks;
     double _tokens;
 
-    // Max delay slice in milliseconds for small deficits. Larger deficits use a single reduced delay.
-    public int MaxDelaySliceMs { get; set; } = 50;
-
     public TokenBucketLimiter(double bytesPerSecond, double burstBytes)
     {
         if (bytesPerSecond <= 0) throw new ArgumentOutOfRangeException(nameof(bytesPerSecond));
@@ -22,6 +19,9 @@ public sealed class TokenBucketLimiter
         _tokens = burstBytes;
         _lastTicks = Stopwatch.GetTimestamp();
     }
+
+    // Max delay slice in milliseconds for small deficits. Larger deficits use a single reduced delay.
+    public int MaxDelaySliceMs { get; set; } = 50;
 
     void Refill()
     {

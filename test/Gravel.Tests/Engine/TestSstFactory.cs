@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.IO;
+using System.Linq;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Sst;
 
@@ -11,12 +11,6 @@ namespace Gravel.Engine;
 sealed class TestSstFactory : ISstFactory
 {
     readonly Dictionary<string, ISstReader> _readers = new(StringComparer.OrdinalIgnoreCase);
-
-    public void Register(string basePath, int level, string fileName, IEnumerable<DbEntry> entries)
-    {
-        var path = System.IO.Path.Combine(basePath, $"L{level}", fileName);
-        _readers[path] = new TestSstReader(entries);
-    }
 
     public ISstReader CreateReader(string path)
     {
@@ -31,7 +25,13 @@ sealed class TestSstFactory : ISstFactory
 
     public IEnumerable<string> EnumerateLevelFiles(string basePath, int level)
     {
-        var prefix = System.IO.Path.Combine(basePath, $"L{level}") + System.IO.Path.DirectorySeparatorChar;
+        var prefix = Path.Combine(basePath, $"L{level}") + Path.DirectorySeparatorChar;
         return _readers.Keys.Where(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).OrderBy(k => k);
+    }
+
+    public void Register(string basePath, int level, string fileName, IEnumerable<DbEntry> entries)
+    {
+        var path = Path.Combine(basePath, $"L{level}", fileName);
+        _readers[path] = new TestSstReader(entries);
     }
 }

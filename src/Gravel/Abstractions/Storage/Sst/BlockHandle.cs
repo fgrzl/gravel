@@ -2,16 +2,10 @@
 
 namespace Gravel.Abstractions.Storage.Sst;
 
-public readonly struct BlockHandle
+public readonly struct BlockHandle(ulong offset, ulong size)
 {
-    public readonly ulong Offset;
-    public readonly ulong Size;
-
-    public BlockHandle(ulong offset, ulong size)
-    {
-        Offset = offset;
-        Size = size;
-    }
+    public readonly ulong Offset = offset;
+    public readonly ulong Size = size;
 
     public int Encode(Span<byte> dst)
     {

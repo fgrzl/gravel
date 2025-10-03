@@ -1,5 +1,4 @@
-﻿using System.Threading;
-using Gravel.Abstractions;
+﻿using Gravel.Abstractions;
 using Gravel.Internals;
 
 namespace Gravel.Engine;
@@ -18,15 +17,15 @@ public sealed class MemTable
     readonly Node _head = new(null!, MaxLevel); // dummy head
     readonly EntryPool _pool = new();
 
+    // Targeted range index for fast coverage checks
+    readonly RangeIndex _rangeIndex = new();
+
     readonly object _sync = new();
 
     // reuse a single update array (protected by same lock) to avoid per-op allocations
     readonly Node?[] _update = new Node?[MaxLevel];
     int _count;
     int _level = 1;
-
-    // Targeted range index for fast coverage checks
-    readonly RangeIndex _rangeIndex = new();
 
     // Diagnostics: track how often Scan() is enumerated
     long _scanEnumerations;
@@ -281,7 +280,7 @@ public sealed class MemTable
 
     sealed class RangeIndex
     {
-        readonly List<(byte[] Start, byte[] End, ulong Seq)> _ranges = new();
+        readonly List<(byte[] Start, byte[] End, ulong Seq)> _ranges = [];
 
         public void Add(byte[] start, byte[] end, ulong seq)
         {
@@ -343,9 +342,8 @@ public sealed class MemTable
                 var r = _ranges[i];
                 if (ByteComparer.Compare(r.Start, key) > 0) break;
                 if (ByteComparer.Compare(key, r.End) < 0)
-                {
-                    if (r.Seq > coveringSeq) coveringSeq = r.Seq;
-                }
+                    if (r.Seq > coveringSeq)
+                        coveringSeq = r.Seq;
             }
 
             return coveringSeq > 0;

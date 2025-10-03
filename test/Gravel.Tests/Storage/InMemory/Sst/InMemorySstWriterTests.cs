@@ -11,10 +11,15 @@ namespace Gravel.Storage.InMemory.Sst;
 
 public class InMemorySstWriterTests
 {
-    static InMemorySstFactory CreateFactory(bool dedupe = true) =>
-        new(Options.Create(new InMemorySstOptions { DeduplicateOnSeal = dedupe }));
+    static InMemorySstFactory CreateFactory(bool dedupe = true)
+    {
+        return new InMemorySstFactory(Options.Create(new InMemorySstOptions { DeduplicateOnSeal = dedupe }));
+    }
 
-    static DbEntry E(string k, string v, ulong seq) => DbEntry.Put(Encoding.UTF8.GetBytes(k), Encoding.UTF8.GetBytes(v), seq);
+    static DbEntry E(string k, string v, ulong seq)
+    {
+        return DbEntry.Put(Encoding.UTF8.GetBytes(k), Encoding.UTF8.GetBytes(v), seq);
+    }
 
     [Fact]
     public async Task should_publish_snapshot_given_dispose_when_writer_completes()

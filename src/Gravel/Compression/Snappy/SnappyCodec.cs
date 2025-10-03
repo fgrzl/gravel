@@ -18,7 +18,7 @@ public static class SnappyCodec
     public static byte[] Compress(ReadOnlySpan<byte> input)
     {
         var n = input.Length;
-        if (n == 0) return new byte[] { 0 }; // varint zero only
+        if (n == 0) return [0]; // varint zero only
 
         // Simplified encoder: always emit uncompressed literal block after varint length.
         // varint length may take up to 5 bytes for 32-bit
@@ -175,7 +175,7 @@ public static class SnappyCodec
         else
         {
             var lenm1 = (uint)(len - 1);
-            var extra = 0;
+            int extra;
             if (lenm1 <= 0xFF) extra = 1;
             else if (lenm1 <= 0xFFFF) extra = 2;
             else if (lenm1 <= 0xFFFFFF) extra = 3;

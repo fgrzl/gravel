@@ -3,18 +3,13 @@ using Gravel.Internals;
 
 namespace Gravel.Abstractions.Storage.Sst;
 
-sealed class DataBlockBuilder
+sealed class DataBlockBuilder(int restartInterval = 16)
 {
     readonly MemoryStream _buf = new();
-    readonly int _restartInterval;
+    readonly int _restartInterval = Math.Max(1, restartInterval);
     readonly List<int> _restarts = [0];
     int _entrySinceRestart;
     byte[] _prevKey = [];
-
-    public DataBlockBuilder(int restartInterval = 16)
-    {
-        _restartInterval = Math.Max(1, restartInterval);
-    }
 
     public int CurrentSize => (int)_buf.Length + (_restarts.Count * 4) + 4;
 
@@ -53,9 +48,9 @@ sealed class DataBlockBuilder
 
     public byte[] Finish()
     {
+        Span<byte> tmp = stackalloc byte[4];
         foreach (var off in _restarts)
         {
-            Span<byte> tmp = stackalloc byte[4];
             BinaryPrimitives.WriteInt32LittleEndian(tmp, off);
             _buf.Write(tmp);
         }

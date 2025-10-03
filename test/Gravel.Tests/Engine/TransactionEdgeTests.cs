@@ -3,6 +3,7 @@ using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Gravel.Abstractions;
+using Gravel.Engine.Compaction;
 using Gravel.Exceptions;
 using Gravel.Storage.InMemory.Sst;
 using Gravel.Storage.InMemory.Wal;
@@ -14,9 +15,19 @@ namespace Gravel.Engine;
 
 public class TransactionEdgeTests
 {
+    // Convenience overload that uses a no-op compaction worker for tests.
     static IGravelEngine CreateEngine(
         InMemorySstFactory sstFactory,
         InMemoryWalFactory walFactory,
+        GravelOptions? opts = null)
+    {
+        return CreateEngine(sstFactory, walFactory, new NoopCompactionWorker(), opts);
+    }
+
+    static IGravelEngine CreateEngine(
+        InMemorySstFactory sstFactory,
+        InMemoryWalFactory walFactory,
+        ICompactionWorker worker,
         GravelOptions? opts = null)
     {
         var options = Options.Create(opts ?? new GravelOptions
@@ -26,12 +37,23 @@ public class TransactionEdgeTests
             SstLevels = 2,
             WalSyncOnCommit = true
         });
-        return new Engine(options, walFactory, sstFactory, null, NullLogger<Engine>.Instance);
+        return new Engine(options, walFactory, sstFactory, worker, NullLogger<Engine>.Instance);
     }
 
-    static InMemorySstFactory SstFactory() => new(Options.Create(new InMemorySstOptions()));
-    static InMemoryWalFactory WalFactory() => new(Options.Create(new InMemoryWalOptions()));
-    static ReadOnlyMemory<byte> B(string s) => Encoding.UTF8.GetBytes(s);
+    static InMemorySstFactory SstFactory()
+    {
+        return new InMemorySstFactory(Options.Create(new InMemorySstOptions()));
+    }
+
+    static InMemoryWalFactory WalFactory()
+    {
+        return new InMemoryWalFactory(Options.Create(new InMemoryWalOptions()));
+    }
+
+    static ReadOnlyMemory<byte> B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
 
     [Fact]
     public async Task should_affect_txn_view_and_rollback_restore_given_staged_put_then_delete_when_rollback()

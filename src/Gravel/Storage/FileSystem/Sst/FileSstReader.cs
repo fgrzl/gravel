@@ -23,7 +23,7 @@ public sealed class FileSstReader : ISstReader
     readonly string _path;
 
     // Range tombstones loaded from metaindex block
-    readonly List<(byte[] Start, byte[] End, ulong Seq)> _rangeDeletes = new();
+    readonly List<(byte[] Start, byte[] End, ulong Seq)> _rangeDeletes = [];
     readonly FileStream _stream;
 
     public FileSstReader(string path, ICompressorFactory compressorFactory, ILogger<FileSstReader>? logger = null)

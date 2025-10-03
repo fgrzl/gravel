@@ -40,7 +40,8 @@ public static class Timestamp
         // If the environment explicitly requests system time at call-time, prefer
         // the system clock. This ensures tests that set the env after static
         // initialization still observe system time.
-        if (GetTimeServer() == "system") return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        if (GetTimeServer() == "system")
+            return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         var clock = GlobalClock;
 

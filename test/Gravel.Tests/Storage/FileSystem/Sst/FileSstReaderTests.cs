@@ -38,8 +38,15 @@ public class FileSstReaderTests : IAsyncLifetime
         await Task.CompletedTask;
     }
 
-    static byte[] B(string s) => Encoding.UTF8.GetBytes(s);
-    static DbEntry E(string k, string v, ulong seq) => DbEntry.Put(B(k), B(v), seq);
+    static byte[] B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
+
+    static DbEntry E(string k, string v, ulong seq)
+    {
+        return DbEntry.Put(B(k), B(v), seq);
+    }
 
     static async IAsyncEnumerable<DbEntry> MakeAsyncEntries(IEnumerable<(string k, string v)> items)
     {

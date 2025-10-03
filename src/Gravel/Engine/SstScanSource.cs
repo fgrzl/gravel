@@ -1,7 +1,4 @@
 using System.Collections.Concurrent;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Sst;
 using Gravel.Internals;
@@ -10,18 +7,13 @@ namespace Gravel.Engine;
 
 sealed class SstScanSource : IScanSource
 {
-    readonly CancellationToken _ct;
-    readonly ReadOnlyMemory<byte>? _end;
-    readonly ConcurrentQueue<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value, ulong Seq, DbEntryKind Kind)> _buffer = new();
-    readonly ManualResetEventSlim _dataReady = new(false);
-    volatile bool _completed;
+    readonly ConcurrentQueue<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value, ulong Seq, DbEntryKind Kind)>
+        _buffer = new();
 
-    public int Precedence { get; }
-    public bool HasItem { get; private set; }
-    public ReadOnlyMemory<byte> Key { get; private set; }
-    public ReadOnlyMemory<byte> Value { get; private set; }
-    public DbEntryKind Kind { get; private set; }
-    public ulong Sequence { get; private set; }
+    readonly CancellationToken _ct;
+    readonly ManualResetEventSlim _dataReady = new(false);
+    readonly ReadOnlyMemory<byte>? _end;
+    volatile bool _completed;
 
     SstScanSource(int precedence, ReadOnlyMemory<byte>? end, CancellationToken ct)
     {
@@ -29,6 +21,13 @@ sealed class SstScanSource : IScanSource
         _end = end;
         _ct = ct;
     }
+
+    public int Precedence { get; }
+    public bool HasItem { get; private set; }
+    public ReadOnlyMemory<byte> Key { get; private set; }
+    public ReadOnlyMemory<byte> Value { get; private set; }
+    public DbEntryKind Kind { get; private set; }
+    public ulong Sequence { get; private set; }
 
     public bool MoveNext()
     {
@@ -90,7 +89,8 @@ sealed class SstScanSource : IScanSource
                 .Select(x => (x.Start, x.End, x.Seq))
                 .Where(x => !(end.HasValue && ByteComparer.Compare(x.Start.Span, end.Value.Span) >= 0))
                 .Where(x => !(start.HasValue && ByteComparer.Compare(x.End.Span, start.Value.Span) <= 0))
-                .OrderBy(x => x.Start, Comparer<ReadOnlyMemory<byte>>.Create((a,b) => ByteComparer.Compare(a.Span,b.Span)))
+                .OrderBy(x => x.Start,
+                    Comparer<ReadOnlyMemory<byte>>.Create((a, b) => ByteComparer.Compare(a.Span, b.Span)))
                 .ThenByDescending(x => x.Seq)
                 .ToList();
 
@@ -98,7 +98,8 @@ sealed class SstScanSource : IScanSource
             var points = reader.ReadAllAsync(ct).GetAsyncEnumerator(ct);
 
             // Advance to first point at/after start and skip range entries in point stream
-            async Task<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value, ulong Seq, DbEntryKind Kind)?> NextPointAsync()
+            async Task<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value, ulong Seq, DbEntryKind Kind)?>
+                NextPointAsync()
             {
                 while (await points.MoveNextAsync().ConfigureAwait(false))
                 {
@@ -116,6 +117,7 @@ sealed class SstScanSource : IScanSource
 
             // Prepare first range marker within bounds
             (ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> End, ulong Seq)? nextRange = null;
+
             void PrimeRange()
             {
                 while (rangeIdx < ranges.Count)
@@ -149,7 +151,10 @@ sealed class SstScanSource : IScanSource
                     else if (cmp > 0) emitPoint = false;
                     else emitPoint = nextPoint.Value.Seq >= nextRange.Value.Seq;
                 }
-                else emitPoint = nextPoint != null;
+                else
+                {
+                    emitPoint = nextPoint != null;
+                }
 
                 if (emitPoint)
                 {
@@ -159,7 +164,8 @@ sealed class SstScanSource : IScanSource
                 }
                 else
                 {
-                    sink._buffer.Enqueue((nextRange!.Value.Key, nextRange.Value.End, nextRange.Value.Seq, DbEntryKind.DeleteRange));
+                    sink._buffer.Enqueue((nextRange!.Value.Key, nextRange.Value.End, nextRange.Value.Seq,
+                        DbEntryKind.DeleteRange));
                     sink._dataReady.Set();
                     PrimeRange();
                 }

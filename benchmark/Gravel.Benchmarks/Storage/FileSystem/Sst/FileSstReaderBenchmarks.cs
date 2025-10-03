@@ -44,8 +44,8 @@ public class FileSstReaderBenchmarks
 
         async IAsyncEnumerable<DbEntry> Gen()
         {
+            await Task.Yield();
             foreach (var e in entries) yield return e;
-            // Removed await Task.Yield(); for speed
         }
 
         w.WriteAsync(Gen()).GetAwaiter().GetResult();

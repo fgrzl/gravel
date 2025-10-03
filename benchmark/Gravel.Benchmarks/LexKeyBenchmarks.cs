@@ -1,7 +1,6 @@
 using System;
 using System.Text;
 using BenchmarkDotNet.Attributes;
-using Gravel.Abstractions;
 
 namespace Gravel.Benchmark;
 

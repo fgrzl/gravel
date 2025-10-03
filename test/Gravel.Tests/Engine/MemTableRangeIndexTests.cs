@@ -1,15 +1,16 @@
 using System;
-using System.Linq;
 using System.Text;
 using FluentAssertions;
-using Gravel.Abstractions;
 using Xunit;
 
 namespace Gravel.Engine;
 
 public class MemTableRangeIndexTests
 {
-    static ReadOnlyMemory<byte> B(string s) => Encoding.UTF8.GetBytes(s);
+    static ReadOnlyMemory<byte> B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
 
     [Fact]
     public void should_return_newest_covering_range_sequence()

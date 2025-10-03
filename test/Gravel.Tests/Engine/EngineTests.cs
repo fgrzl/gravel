@@ -35,9 +35,20 @@ public class EngineTests
         return new Engine(options, walFactory, sstFactory, worker, NullLogger<Engine>.Instance);
     }
 
-    static InMemorySstFactory SstFactory() => new(Options.Create(new InMemorySstOptions()));
-    static InMemoryWalFactory WalFactory() => new(Options.Create(new InMemoryWalOptions()));
-    static ReadOnlyMemory<byte> B(string s) => Encoding.UTF8.GetBytes(s);
+    static InMemorySstFactory SstFactory()
+    {
+        return new InMemorySstFactory(Options.Create(new InMemorySstOptions()));
+    }
+
+    static InMemoryWalFactory WalFactory()
+    {
+        return new InMemoryWalFactory(Options.Create(new InMemoryWalOptions()));
+    }
+
+    static ReadOnlyMemory<byte> B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
 
     [Fact]
     public async Task should_replay_wal_and_load_levels_given_initialize()

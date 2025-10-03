@@ -38,7 +38,10 @@ public class FileWalReaderTests : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    static byte[] B(string s) => Encoding.UTF8.GetBytes(s);
+    static byte[] B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
 
     [Fact]
     public async Task should_replay_single_transaction_given_put_commit_when_replay_async()

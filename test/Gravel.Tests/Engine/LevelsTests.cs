@@ -6,7 +6,10 @@ namespace Gravel.Engine;
 
 public class LevelsTests
 {
-    static SstFile File(string name) => new($"mem://{name}", new DummyReader(), 0UL);
+    static SstFile File(string name)
+    {
+        return new SstFile($"mem://{name}", new DummyReader(), 0UL);
+    }
 
     [Fact]
     public void should_report_level_count_given_initialized_levels_when_querying()

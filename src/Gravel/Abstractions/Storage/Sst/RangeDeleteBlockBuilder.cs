@@ -10,7 +10,7 @@ namespace Gravel.Abstractions.Storage.Sst;
 /// </summary>
 sealed class RangeDeleteBlockBuilder
 {
-    readonly List<(byte[] Start, byte[] End, ulong Seq)> _entries = new();
+    readonly List<(byte[] Start, byte[] End, ulong Seq)> _entries = [];
 
     public int Count => _entries.Count;
 
@@ -21,10 +21,13 @@ sealed class RangeDeleteBlockBuilder
 
     public byte[] Finish()
     {
-        if (_entries.Count == 0) return Array.Empty<byte>();
+        if (_entries.Count == 0)
+            return [];
+
         _entries.Sort((a, b) => ByteComparer.Compare(a.Start, b.Start));
         using var ms = new MemoryStream();
         Span<byte> tmp = stackalloc byte[12];
+        Span<byte> seqBuf = stackalloc byte[8];
         foreach (var (s, e, seq) in _entries)
         {
             var n = Varint.Write32(tmp, (uint)s.Length);
@@ -35,7 +38,6 @@ sealed class RangeDeleteBlockBuilder
             ms.Write(tmp[..n]);
             ms.Write(e);
 
-            Span<byte> seqBuf = stackalloc byte[8];
             BinaryPrimitives.WriteUInt64LittleEndian(seqBuf, seq);
             ms.Write(seqBuf);
         }

@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -9,7 +8,10 @@ namespace Gravel.Engine;
 
 public class LevelsConcurrencyTests
 {
-    static SstFile File(string name) => new($"mem://{name}", new DummyReader(), 0UL);
+    static SstFile File(string name)
+    {
+        return new SstFile($"mem://{name}", new DummyReader(), 0UL);
+    }
 
     [Fact]
     public async Task should_be_thread_safe_given_concurrent_adds_when_snapshot_levels()
@@ -19,11 +21,12 @@ public class LevelsConcurrencyTests
         var tasks = new List<Task>();
 
         // Act: concurrently add files to each level
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             var idx = i;
             tasks.Add(Task.Run(() => lvls.Add(idx % 3, File($"f{idx}"))));
         }
+
         await Task.WhenAll(tasks);
 
         // Assert: snapshot is consistent and counts match

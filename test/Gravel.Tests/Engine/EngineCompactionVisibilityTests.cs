@@ -14,7 +14,10 @@ namespace Gravel.Engine;
 
 public class EngineCompactionVisibilityTests
 {
-    static ReadOnlyMemory<byte> B(string s) => Encoding.UTF8.GetBytes(s);
+    static ReadOnlyMemory<byte> B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
 
     static IGravelEngine CreateEngine(
         InMemorySstFactory sstFactory,
@@ -35,8 +38,15 @@ public class EngineCompactionVisibilityTests
         return new Engine(options, walFactory, sstFactory, worker, NullLogger<Engine>.Instance);
     }
 
-    static InMemorySstFactory SstFactory() => new(Options.Create(new InMemorySstOptions()));
-    static InMemoryWalFactory WalFactory() => new(Options.Create(new InMemoryWalOptions()));
+    static InMemorySstFactory SstFactory()
+    {
+        return new InMemorySstFactory(Options.Create(new InMemorySstOptions()));
+    }
+
+    static InMemoryWalFactory WalFactory()
+    {
+        return new InMemoryWalFactory(Options.Create(new InMemoryWalOptions()));
+    }
 
     [Fact]
     public async Task should_keep_data_visible_while_compaction_is_pending()

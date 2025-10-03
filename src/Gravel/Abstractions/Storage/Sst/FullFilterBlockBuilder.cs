@@ -3,14 +3,9 @@ using Gravel.Internals.Filters;
 
 namespace Gravel.Abstractions.Storage.Sst;
 
-sealed class FullFilterBlockBuilder
+sealed class FullFilterBlockBuilder(int expectedEntries)
 {
-    readonly BloomFilter _bloom;
-
-    public FullFilterBlockBuilder(int expectedEntries)
-    {
-        _bloom = BloomFilter.Create(expectedEntries);
-    }
+    readonly BloomFilter _bloom = BloomFilter.Create(expectedEntries);
 
     public void AddKey(ReadOnlySpan<byte> key)
     {

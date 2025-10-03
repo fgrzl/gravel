@@ -12,10 +12,10 @@ namespace Gravel.Benchmark.Compression.Snappy;
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
 public class SnappyCodecBenchmarks
 {
-    byte[] _compressedRandom;
-    byte[] _compressedRepetitive;
-    byte[] _randomData;
-    byte[] _repetitiveData;
+    byte[] _compressedRandom = null!;
+    byte[] _compressedRepetitive = null!;
+    byte[] _randomData = null!;
+    byte[] _repetitiveData = null!;
 
     [GlobalSetup]
     public void Setup()

@@ -75,10 +75,8 @@ sealed class Levels(int levelCount)
             // Remove inputs that are still present
             var src = _levels[fromLevel];
             for (var i = src.Count - 1; i >= 0; i--)
-            {
                 if (inputs.Contains(src[i]))
                     src.RemoveAt(i);
-            }
 
             // Install output
             _levels[toLevel].Add(output);

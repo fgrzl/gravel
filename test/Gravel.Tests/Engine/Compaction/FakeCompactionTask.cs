@@ -10,7 +10,7 @@ namespace Gravel.Engine.Compaction;
 class FakeCompactionTask : ICompactionTask
 {
     readonly byte[][] _inputs;
-    readonly List<byte> _output = new();
+    readonly List<byte> _output = [];
     int _idx;
 
     public FakeCompactionTask(string id, byte[][] inputs)
