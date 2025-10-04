@@ -1,7 +1,7 @@
 ﻿using System.Buffers.Binary;
+using System.IO.MemoryMappedFiles;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.IO.MemoryMappedFiles;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Sst;
 using Gravel.Compression;
@@ -17,25 +17,25 @@ public sealed class FileSstReader : ISstReader
 {
     const ulong RocksMagic = 0xDB4775248B80FB57UL;
     readonly ICompressorFactory _compressorFactory;
-    readonly ILogger<FileSstReader> _logger;
-    readonly string _path;
-
-    // lazily populated during async init
-    FullFilter? _filter;
     readonly List<(byte[] key, BlockHandle handle)> _indexEntries = [];
-    readonly Dictionary<string, BlockHandle> _metaHandles = new();
-    readonly List<(byte[] Start, byte[] End, ulong Seq)> _rangeDeletes = [];
-
-    // internal mmapped stream
-    readonly MemoryMappedFile _mmf;
-    readonly MemoryMappedViewStream _stream;
-
-    // handles discovered from footer, loaded during initialization
-    readonly BlockHandle _metaHandle;
     readonly BlockHandle _indexHandle;
 
     // initialization task started by ctor and awaited by public APIs. Never call .Result; await instead.
     readonly Task _initTask;
+    readonly ILogger<FileSstReader> _logger;
+
+    // handles discovered from footer, loaded during initialization
+    readonly BlockHandle _metaHandle;
+    readonly Dictionary<string, BlockHandle> _metaHandles = new();
+
+    // internal mmapped stream
+    readonly MemoryMappedFile _mmf;
+    readonly string _path;
+    readonly List<(byte[] Start, byte[] End, ulong Seq)> _rangeDeletes = [];
+    readonly MemoryMappedViewStream _stream;
+
+    // lazily populated during async init
+    FullFilter? _filter;
 
     public FileSstReader(string path, ICompressorFactory compressorFactory, ILogger<FileSstReader>? logger = null)
     {
@@ -68,53 +68,6 @@ public sealed class FileSstReader : ISstReader
         _initTask = InitializeInternalAsync();
 
         Log.SstOpenedRead(_logger, path, 64 * 1024);
-    }
-
-    /// <summary>
-    /// Ensure the reader has finished loading meta/index/filter/range-deletes.
-    /// Safe to call multiple times.
-    /// </summary>
-    public ValueTask InitializeAsync(CancellationToken ct = default)
-    {
-        if (ct.IsCancellationRequested) return ValueTask.FromCanceled(ct);
-        // Return a ValueTask wrapping the internal init task
-        return _initTask.IsCompletedSuccessfully ? ValueTask.CompletedTask : new ValueTask(_initTask);
-    }
-
-    // Internal initialization that loads metaindex, filter, ranges and index entries.
-    async Task InitializeInternalAsync()
-    {
-        // load metaindex
-        var metaRaw = await ReadBlock(_metaHandle).ConfigureAwait(false);
-        var metaEntries = ParseKeyValueBlock(metaRaw);
-        foreach (var (k, v) in metaEntries)
-        {
-            var bh = DecodeBlockHandle(v);
-            _metaHandles[Encoding.ASCII.GetString(k)] = bh;
-        }
-
-        // load filter if present
-        if (_metaHandles.TryGetValue("filter.full", out var fh))
-        {
-            var fb = await ReadBlock(fh).ConfigureAwait(false);
-            _filter = new FullFilter(fb);
-        }
-
-        // load range deletes if present
-        if (_metaHandles.TryGetValue("range.delete", out var rdh))
-        {
-            var rdb = await ReadBlock(rdh).ConfigureAwait(false);
-            _rangeDeletes.AddRange(ParseRangeDeleteBlock(rdb));
-        }
-
-        // load index
-        var indexRaw = await ReadBlock(_indexHandle).ConfigureAwait(false);
-        var indexEntries = ParseKeyValueBlock(indexRaw);
-        foreach (var (k, v) in indexEntries)
-        {
-            var bh = DecodeBlockHandle(v);
-            _indexEntries.Add((k, bh));
-        }
     }
 
     public IReadOnlyList<(ReadOnlyMemory<byte> Start, ReadOnlyMemory<byte> End, ulong Seq)> GetRangeDeletes()
@@ -211,6 +164,53 @@ public sealed class FileSstReader : ISstReader
     {
         _stream.Dispose();
         _mmf.Dispose();
+    }
+
+    /// <summary>
+    ///     Ensure the reader has finished loading meta/index/filter/range-deletes.
+    ///     Safe to call multiple times.
+    /// </summary>
+    public ValueTask InitializeAsync(CancellationToken ct = default)
+    {
+        if (ct.IsCancellationRequested) return ValueTask.FromCanceled(ct);
+        // Return a ValueTask wrapping the internal init task
+        return _initTask.IsCompletedSuccessfully ? ValueTask.CompletedTask : new ValueTask(_initTask);
+    }
+
+    // Internal initialization that loads metaindex, filter, ranges and index entries.
+    async Task InitializeInternalAsync()
+    {
+        // load metaindex
+        var metaRaw = await ReadBlock(_metaHandle).ConfigureAwait(false);
+        var metaEntries = ParseKeyValueBlock(metaRaw);
+        foreach (var (k, v) in metaEntries)
+        {
+            var bh = DecodeBlockHandle(v);
+            _metaHandles[Encoding.ASCII.GetString(k)] = bh;
+        }
+
+        // load filter if present
+        if (_metaHandles.TryGetValue("filter.full", out var fh))
+        {
+            var fb = await ReadBlock(fh).ConfigureAwait(false);
+            _filter = new FullFilter(fb);
+        }
+
+        // load range deletes if present
+        if (_metaHandles.TryGetValue("range.delete", out var rdh))
+        {
+            var rdb = await ReadBlock(rdh).ConfigureAwait(false);
+            _rangeDeletes.AddRange(ParseRangeDeleteBlock(rdb));
+        }
+
+        // load index
+        var indexRaw = await ReadBlock(_indexHandle).ConfigureAwait(false);
+        var indexEntries = ParseKeyValueBlock(indexRaw);
+        foreach (var (k, v) in indexEntries)
+        {
+            var bh = DecodeBlockHandle(v);
+            _indexEntries.Add((k, bh));
+        }
     }
 
     static BlockHandle DecodeBlockHandle(ReadOnlySpan<byte> span)

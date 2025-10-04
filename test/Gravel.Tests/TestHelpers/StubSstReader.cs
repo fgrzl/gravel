@@ -45,4 +45,9 @@ sealed class StubSstReader(IEnumerable<DbEntry> entries) : ISstReader
     public void Dispose()
     {
     }
+
+    public ValueTask InitializeAsync(CancellationToken ct = default)
+    {
+        return ValueTask.CompletedTask;
+    }
 }

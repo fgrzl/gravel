@@ -25,4 +25,9 @@ public sealed class InMemorySstWriter(Action<InMemorySst> onCompleted) : ISstWri
         onCompleted(new InMemorySst(list));
         return ValueTask.CompletedTask;
     }
+
+    public ValueTask InitializeAsync(CancellationToken ct = default)
+    {
+        return ValueTask.CompletedTask;
+    }
 }

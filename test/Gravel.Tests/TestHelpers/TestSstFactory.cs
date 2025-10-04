@@ -16,18 +16,19 @@ sealed class TestSstFactory : ISstFactory
 
     public async ValueTask<ISstReader> CreateReaderAsync(string path, CancellationToken ct = default)
     {
-        if (ct.IsCancellationRequested) return await Task.FromCanceled<ISstReader>(ct).ConfigureAwait(false);
-        if (_readers.TryGetValue(path, out var r))
-        {
-            if (r is IAsyncInitializable ai)
-                await ai.InitializeAsync(ct).ConfigureAwait(false);
-            return r;
-        }
+        if (ct.IsCancellationRequested)
+            return await Task.FromCanceled<ISstReader>(ct).ConfigureAwait(false);
 
-        throw new FileNotFoundException(path);
+        if (!_readers.TryGetValue(path, out var r))
+            throw new FileNotFoundException(path);
+
+        if (r is IAsyncInitializable ai)
+            await ai.InitializeAsync(ct).ConfigureAwait(false);
+
+        return r;
     }
 
-    public async ValueTask<ISstWriter> CreateWriterAsync(string path, int expectedEntries, CancellationToken ct = default)
+    public ValueTask<ISstWriter> CreateWriterAsync(string path, int expectedEntries, CancellationToken ct = default)
     {
         // Test factory doesn't support writers; keep behavior consistent by throwing
         throw new NotSupportedException("Test factory writer not supported in this test");

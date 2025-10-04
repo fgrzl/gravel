@@ -36,4 +36,9 @@ public sealed class InMemorySstReader(InMemorySst sst) : ISstReader
     public void Dispose()
     {
     }
+
+    public ValueTask InitializeAsync(CancellationToken ct = default)
+    {
+        return ValueTask.CompletedTask;
+    }
 }

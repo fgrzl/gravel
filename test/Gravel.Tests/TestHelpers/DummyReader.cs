@@ -39,4 +39,9 @@ public sealed class DummyReader : ISstReader
         await Task.CompletedTask;
         yield break;
     }
+
+    public ValueTask InitializeAsync(CancellationToken ct = default)
+    {
+        return ValueTask.CompletedTask;
+    }
 }

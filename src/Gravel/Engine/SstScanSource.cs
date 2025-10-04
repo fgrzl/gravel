@@ -11,8 +11,8 @@ sealed class SstScanSource : IScanSource
         _buffer = new();
 
     readonly CancellationToken _ct;
-    readonly SemaphoreSlim _itemAvailable = new(0);
     readonly ReadOnlyMemory<byte>? _end;
+    readonly SemaphoreSlim _itemAvailable = new(0);
     volatile bool _completed;
 
     SstScanSource(int precedence, ReadOnlyMemory<byte>? end, CancellationToken ct)
@@ -146,14 +146,28 @@ sealed class SstScanSource : IScanSource
                 {
                     sink._buffer.Enqueue(nextPoint!.Value);
                     // signal one available item
-                    try { sink._itemAvailable.Release(); } catch { }
+                    try
+                    {
+                        sink._itemAvailable.Release();
+                    }
+                    catch
+                    {
+                    }
+
                     nextPoint = await NextPointAsync().ConfigureAwait(false);
                 }
                 else
                 {
                     sink._buffer.Enqueue((nextRange!.Value.Key, nextRange.Value.End, nextRange.Value.Seq,
                         DbEntryKind.DeleteRange));
-                    try { sink._itemAvailable.Release(); } catch { }
+                    try
+                    {
+                        sink._itemAvailable.Release();
+                    }
+                    catch
+                    {
+                    }
+
                     PrimeRange();
                 }
             }
@@ -162,7 +176,13 @@ sealed class SstScanSource : IScanSource
         {
             sink._completed = true;
             // release waiting MoveNext() calls so they can observe completion
-            try { sink._itemAvailable.Release(); } catch { }
+            try
+            {
+                sink._itemAvailable.Release();
+            }
+            catch
+            {
+            }
         }
     }
 

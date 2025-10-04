@@ -1,6 +1,6 @@
 namespace Gravel.Abstractions.Storage.Sst;
 
-public interface ISstReader : IDisposable
+public interface ISstReader : IAsyncInitializable, IDisposable
 {
     ValueTask<DbEntry?> GetAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default);
     IAsyncEnumerable<DbEntry> ReadAllAsync(CancellationToken ct = default);

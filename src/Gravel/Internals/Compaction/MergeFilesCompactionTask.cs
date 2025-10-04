@@ -71,9 +71,11 @@ public sealed class MergeFilesCompactionTask : ICompactionTask
                 Log.CompactionStarted(_logger, -1, _inputs.Count, -1);
 
                 // Use async factory to create writer and ensure it's initialized before writing
-                await using (var w = await _sstFactory.CreateWriterAsync(_outPath, _expectedEntries, ct).ConfigureAwait(false))
+                await using (var w = await _sstFactory.CreateWriterAsync(_outPath, _expectedEntries, ct)
+                                 .ConfigureAwait(false))
                 {
-                    await w.WriteAsync(Compactor.MergeLevelFilesAsync(_inputs, CancellationToken.None)).ConfigureAwait(false);
+                    await w.WriteAsync(Compactor.MergeLevelFilesAsync(_inputs, CancellationToken.None))
+                        .ConfigureAwait(false);
                 }
 
                 // on success, invoke engine callback to install SST and remove inputs

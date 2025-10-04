@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
+using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Sst;
 using Gravel.Internals;
 using Microsoft.Extensions.Options;
-using Gravel.Abstractions;
 
 namespace Gravel.Storage.InMemory.Sst;
 
@@ -29,7 +29,8 @@ public sealed class InMemorySstFactory : ISstFactory
         return reader;
     }
 
-    public async ValueTask<ISstWriter> CreateWriterAsync(string path, int expectedEntries, CancellationToken ct = default)
+    public async ValueTask<ISstWriter> CreateWriterAsync(
+        string path, int expectedEntries, CancellationToken ct = default)
     {
         if (ct.IsCancellationRequested) return await Task.FromCanceled<ISstWriter>(ct).ConfigureAwait(false);
 

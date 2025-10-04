@@ -1,6 +1,6 @@
 namespace Gravel.Abstractions.Storage.Sst;
 
-public interface ISstWriter : IAsyncDisposable
+public interface ISstWriter : IAsyncInitializable, IAsyncDisposable
 {
     /// <summary>
     ///     Write a sequence of database entries (puts and tombstones) in sorted order.

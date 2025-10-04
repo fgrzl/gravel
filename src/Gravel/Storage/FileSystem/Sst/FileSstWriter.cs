@@ -17,6 +17,9 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
     readonly string _finalPath;
     readonly FullFilterBlockBuilder _fullFilter;
     readonly SimpleBlockBuilder _index = new();
+
+    // Initialization task started by ctor; currently trivial but allows async init without blocking ctor
+    readonly Task _initTask;
     readonly ILogger _logger;
     readonly SimpleBlockBuilder _metaindex = new();
 
@@ -28,9 +31,6 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
     int _entryCount;
 
     byte[] _lastKey = [];
-
-    // Initialization task started by ctor; currently trivial but allows async init without blocking ctor
-    readonly Task _initTask;
 
     public FileSstWriter(
         string path,
@@ -59,16 +59,6 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
 
         // Kick off a trivial init task so callers can await InitializeAsync if desired.
         _initTask = Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Ensure writer has completed any async initialization. Safe to call multiple times.
-    /// Currently a no-op but provided for API symmetry and future async init needs.
-    /// </summary>
-    public ValueTask InitializeAsync(CancellationToken ct = default)
-    {
-        if (ct.IsCancellationRequested) return ValueTask.FromCanceled(ct);
-        return _initTask.IsCompletedSuccessfully ? ValueTask.CompletedTask : new ValueTask(_initTask);
     }
 
     public async ValueTask WriteAsync(IAsyncEnumerable<DbEntry> entries, CancellationToken ct = default)
@@ -157,6 +147,16 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
         {
             Log.SstSealFailed(_logger, _finalPath, _tmpPath, ex.Message);
         }
+    }
+
+    /// <summary>
+    ///     Ensure writer has completed any async initialization. Safe to call multiple times.
+    ///     Currently a no-op but provided for API symmetry and future async init needs.
+    /// </summary>
+    public ValueTask InitializeAsync(CancellationToken ct = default)
+    {
+        if (ct.IsCancellationRequested) return ValueTask.FromCanceled(ct);
+        return _initTask.IsCompletedSuccessfully ? ValueTask.CompletedTask : new ValueTask(_initTask);
     }
 
     static byte[] MakeInternalKey(ReadOnlySpan<byte> userKey, ulong seq, byte type)
