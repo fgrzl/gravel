@@ -48,6 +48,11 @@ public class FileSstReaderBenchmarks
             foreach (var e in entries) yield return e;
         }
 
+        // BenchmarkDotNet's [GlobalSetup] does not support async signatures. We need the SST
+        // file in place before benchmarks run, and the writer API is async. To keep the
+        // setup synchronous (required by BenchmarkDotNet) we synchronously block on the
+        // async write and dispose calls here. This is deliberate — do not change to an
+        // async GlobalSetup without verifying BenchmarkDotNet compatibility.
         w.WriteAsync(Gen()).GetAwaiter().GetResult();
         w.DisposeAsync().GetAwaiter().GetResult();
     }

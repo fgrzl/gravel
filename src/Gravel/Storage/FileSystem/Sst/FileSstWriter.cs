@@ -29,6 +29,9 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
 
     byte[] _lastKey = [];
 
+    // Initialization task started by ctor; currently trivial but allows async init without blocking ctor
+    readonly Task _initTask;
+
     public FileSstWriter(
         string path,
         int expectedEntries,
@@ -53,6 +56,19 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
             FileOptions.Asynchronous | FileOptions.SequentialScan);
 
         Log.SstOpenedWrite(_logger, _finalPath, _tmpPath, bufferSize, 16);
+
+        // Kick off a trivial init task so callers can await InitializeAsync if desired.
+        _initTask = Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Ensure writer has completed any async initialization. Safe to call multiple times.
+    /// Currently a no-op but provided for API symmetry and future async init needs.
+    /// </summary>
+    public ValueTask InitializeAsync(CancellationToken ct = default)
+    {
+        if (ct.IsCancellationRequested) return ValueTask.FromCanceled(ct);
+        return _initTask.IsCompletedSuccessfully ? ValueTask.CompletedTask : new ValueTask(_initTask);
     }
 
     public async ValueTask WriteAsync(IAsyncEnumerable<DbEntry> entries, CancellationToken ct = default)

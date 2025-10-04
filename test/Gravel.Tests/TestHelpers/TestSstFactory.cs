@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Sst;
 
@@ -12,14 +14,22 @@ sealed class TestSstFactory : ISstFactory
 {
     readonly Dictionary<string, ISstReader> _readers = new(StringComparer.OrdinalIgnoreCase);
 
-    public ISstReader CreateReader(string path)
+    public async ValueTask<ISstReader> CreateReaderAsync(string path, CancellationToken ct = default)
     {
-        if (_readers.TryGetValue(path, out var r)) return r;
+        if (ct.IsCancellationRequested) return await Task.FromCanceled<ISstReader>(ct).ConfigureAwait(false);
+        if (_readers.TryGetValue(path, out var r))
+        {
+            if (r is IAsyncInitializable ai)
+                await ai.InitializeAsync(ct).ConfigureAwait(false);
+            return r;
+        }
+
         throw new FileNotFoundException(path);
     }
 
-    public ISstWriter CreateWriter(string path, int expectedEntries)
+    public async ValueTask<ISstWriter> CreateWriterAsync(string path, int expectedEntries, CancellationToken ct = default)
     {
+        // Test factory doesn't support writers; keep behavior consistent by throwing
         throw new NotSupportedException("Test factory writer not supported in this test");
     }
 

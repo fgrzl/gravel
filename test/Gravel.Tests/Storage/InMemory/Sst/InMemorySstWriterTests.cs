@@ -28,7 +28,7 @@ public class InMemorySstWriterTests
         var f = CreateFactory();
 
         // Act
-        await using (var w = f.CreateWriter("/t1", 2))
+        await using (var w = await f.CreateWriterAsync("/t1", 2))
         {
             static async IAsyncEnumerable<DbEntry> Data()
             {
@@ -51,7 +51,7 @@ public class InMemorySstWriterTests
         var f = CreateFactory();
 
         // Act
-        await using (var w = f.CreateWriter("/dedupe", 2))
+        await using (var w = await f.CreateWriterAsync("/dedupe", 2))
         {
             static async IAsyncEnumerable<DbEntry> Data()
             {
@@ -64,7 +64,7 @@ public class InMemorySstWriterTests
         }
 
         // Assert
-        var r = f.CreateReader("/dedupe");
+        var r = await f.CreateReaderAsync("/dedupe");
         var e = await r.GetAsync("k"u8.ToArray());
         Encoding.UTF8.GetString(e!.Value.Value.Span).Should().Be("v2");
     }
@@ -76,7 +76,7 @@ public class InMemorySstWriterTests
         var f = CreateFactory(false);
 
         // Act
-        await using (var w = f.CreateWriter("/versions", 2))
+        await using (var w = await f.CreateWriterAsync("/versions", 2))
         {
             static async IAsyncEnumerable<DbEntry> Data()
             {
@@ -89,7 +89,7 @@ public class InMemorySstWriterTests
         }
 
         // Assert
-        var r = f.CreateReader("/versions");
+        var r = await f.CreateReaderAsync("/versions");
         var list = new List<DbEntry>();
         await foreach (var d in r.ReadAllAsync()) list.Add(d);
         list.Count(x => Encoding.UTF8.GetString(x.Key.Span) == "k").Should().Be(2);

@@ -80,7 +80,7 @@ class DbEngine : IDbEngine
                 new KeyValuePair<string, object?>("sst.dir", _sstDir));
 
             Log.DbOpening(_logger, _options.DatabasePath);
-            for (var l = 0;; l++)
+            for (var l = 0; ; l++)
             {
                 if (l >= _levelsSnapshotCount()) break;
                 // ask factory for level files instead of reading filesystem here
@@ -88,7 +88,8 @@ class DbEngine : IDbEngine
                 foreach (var f in files)
                     try
                     {
-                        _levels.Add(l, new SstFile(f, _sstFactory.CreateReader(f), 0));
+                        var r = await _sstFactory.CreateReaderAsync(f, ct).ConfigureAwait(false);
+                        _levels.Add(l, new SstFile(f, r, 0));
                         Log.SstLoaded(_logger, l, f);
                     }
                     catch (Exception ex)
@@ -331,8 +332,8 @@ class DbEngine : IDbEngine
         _initGate.Dispose();
         var snapshot = _levels.SnapshotLevels();
         foreach (var lvl in snapshot)
-        foreach (var f in lvl)
-            f.Reader.Dispose();
+            foreach (var f in lvl)
+                f.Reader.Dispose();
 
         try
         {
@@ -353,8 +354,8 @@ class DbEngine : IDbEngine
         _initGate.Dispose();
         var snapshot = _levels.SnapshotLevels();
         foreach (var lvl in snapshot)
-        foreach (var f in lvl)
-            f.Reader.Dispose();
+            foreach (var f in lvl)
+                f.Reader.Dispose();
 
         try
         {
@@ -659,41 +660,41 @@ class DbEngine : IDbEngine
                 switch (m.Op)
                 {
                     case MutationOp.Insert:
-                    {
-                        var id = Convert.ToBase64String(m.Key.ToArray());
-                        if (seenKeys.Contains(id))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (txn)");
-                        if (_memTable.TryGet(m.Key.Span, out _, out _, out _))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
-                        if (await KeyExistsInSstAsync(m.Key, ct))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
-                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.Put(m.Key, m.Value, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, m.Value, m.RangeEnd, seq));
-                        seenKeys.Add(id);
-                        break;
-                    }
+                        {
+                            var id = Convert.ToBase64String(m.Key.ToArray());
+                            if (seenKeys.Contains(id))
+                                throw new GravelInvalidOperationException("Insert failed: key exists (txn)");
+                            if (_memTable.TryGet(m.Key.Span, out _, out _, out _))
+                                throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
+                            if (await KeyExistsInSstAsync(m.Key, ct))
+                                throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
+                            await _walWriter.AppendAsync(txn.TxnId, DbEntry.Put(m.Key, m.Value, seq), ct);
+                            applied.Add(new Applied(m.Op, m.Key, m.Value, m.RangeEnd, seq));
+                            seenKeys.Add(id);
+                            break;
+                        }
                     case MutationOp.Put:
-                    {
-                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.Put(m.Key, m.Value, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, m.Value, m.RangeEnd, seq));
-                        var id = Convert.ToBase64String(m.Key.ToArray());
-                        seenKeys.Add(id);
-                        break;
-                    }
+                        {
+                            await _walWriter.AppendAsync(txn.TxnId, DbEntry.Put(m.Key, m.Value, seq), ct);
+                            applied.Add(new Applied(m.Op, m.Key, m.Value, m.RangeEnd, seq));
+                            var id = Convert.ToBase64String(m.Key.ToArray());
+                            seenKeys.Add(id);
+                            break;
+                        }
                     case MutationOp.Delete:
-                    {
-                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.DeleteKey(m.Key, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, default, default, seq));
-                        var id = Convert.ToBase64String(m.Key.ToArray());
-                        seenKeys.Remove(id);
-                        break;
-                    }
+                        {
+                            await _walWriter.AppendAsync(txn.TxnId, DbEntry.DeleteKey(m.Key, seq), ct);
+                            applied.Add(new Applied(m.Op, m.Key, default, default, seq));
+                            var id = Convert.ToBase64String(m.Key.ToArray());
+                            seenKeys.Remove(id);
+                            break;
+                        }
                     case MutationOp.DeleteRange:
-                    {
-                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, default, m.RangeEnd, seq));
-                        break;
-                    }
+                        {
+                            await _walWriter.AppendAsync(txn.TxnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct);
+                            applied.Add(new Applied(m.Op, m.Key, default, m.RangeEnd, seq));
+                            break;
+                        }
                     default:
                         throw new GravelInvalidOperationException("Unknown mutation op");
                 }
@@ -758,41 +759,41 @@ class DbEngine : IDbEngine
                 switch (m.Op)
                 {
                     case MutationOp.Insert:
-                    {
-                        var id = Convert.ToBase64String(m.Key.ToArray());
-                        if (seenKeys.Contains(id))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (batch)");
-                        if (_memTable.TryGet(m.Key.Span, out _, out _, out _))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
-                        if (await KeyExistsInSstAsync(m.Key, ct))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
-                        await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, m.Value, m.RangeEnd, seq));
-                        seenKeys.Add(id);
-                        break;
-                    }
+                        {
+                            var id = Convert.ToBase64String(m.Key.ToArray());
+                            if (seenKeys.Contains(id))
+                                throw new GravelInvalidOperationException("Insert failed: key exists (batch)");
+                            if (_memTable.TryGet(m.Key.Span, out _, out _, out _))
+                                throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
+                            if (await KeyExistsInSstAsync(m.Key, ct))
+                                throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
+                            await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct);
+                            applied.Add(new Applied(m.Op, m.Key, m.Value, m.RangeEnd, seq));
+                            seenKeys.Add(id);
+                            break;
+                        }
                     case MutationOp.Put:
-                    {
-                        await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, m.Value, m.RangeEnd, seq));
-                        var id = Convert.ToBase64String(m.Key.ToArray());
-                        seenKeys.Add(id);
-                        break;
-                    }
+                        {
+                            await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct);
+                            applied.Add(new Applied(m.Op, m.Key, m.Value, m.RangeEnd, seq));
+                            var id = Convert.ToBase64String(m.Key.ToArray());
+                            seenKeys.Add(id);
+                            break;
+                        }
                     case MutationOp.Delete:
-                    {
-                        await _walWriter.AppendAsync(txnId, DbEntry.DeleteKey(m.Key, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, default, default, seq));
-                        var id = Convert.ToBase64String(m.Key.ToArray());
-                        seenKeys.Remove(id);
-                        break;
-                    }
+                        {
+                            await _walWriter.AppendAsync(txnId, DbEntry.DeleteKey(m.Key, seq), ct);
+                            applied.Add(new Applied(m.Op, m.Key, default, default, seq));
+                            var id = Convert.ToBase64String(m.Key.ToArray());
+                            seenKeys.Remove(id);
+                            break;
+                        }
                     case MutationOp.DeleteRange:
-                    {
-                        await _walWriter.AppendAsync(txnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, default, m.RangeEnd, seq));
-                        break;
-                    }
+                        {
+                            await _walWriter.AppendAsync(txnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct);
+                            applied.Add(new Applied(m.Op, m.Key, default, m.RangeEnd, seq));
+                            break;
+                        }
                     default: throw new GravelInvalidOperationException("Unknown mutation op");
                 }
             }
@@ -848,13 +849,15 @@ class DbEngine : IDbEngine
         act?.SetTag("entries", mt.Count);
 
         Log.FlushEnqueued(_logger, mt.Count);
-        await using (var w = _sstFactory.CreateWriter(path, mt.Count))
+        await using (var w = await _sstFactory.CreateWriterAsync(path, mt.Count, ct))
         {
             await w.WriteAsync(EnumerateMemTableEntriesAsync(mt, ct), ct);
         }
 
         _memTable = new MemTable();
-        _levels.Add(0, new SstFile(path, _sstFactory.CreateReader(path), seqTag));
+
+        var r = await _sstFactory.CreateReaderAsync(path, ct);
+        _levels.Add(0, new SstFile(path, r, seqTag));
 
         TelemetrySources.Flushes.Add(1);
         TelemetrySources.FlushSize.Record(mt.Count);
@@ -912,10 +915,10 @@ class DbEngine : IDbEngine
 
             // Enqueue compaction task instead of doing inline merge
             var task = new MergeFilesCompactionTask(to, outPath, _sstFactory,
-                Compactor.EstimateMergedCount(to), (p, inputs) =>
+                Compactor.EstimateMergedCount(to), async (p, inputs) =>
                 {
                     // callback invoked on task success: install new SST and remove inputs atomically
-                    var newR = _sstFactory.CreateReader(p);
+                    var newR = await _sstFactory.CreateReaderAsync(p, ct);
                     _levels.ApplyCompaction(l, inputs, next, new SstFile(p, newR, 0));
 
                     foreach (var f in inputs)

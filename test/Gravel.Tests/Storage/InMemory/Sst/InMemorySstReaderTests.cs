@@ -24,7 +24,7 @@ public class InMemorySstReaderTests
 
     static async Task WriteAsync(ISstFactory f, string path, params (string k, string v)[] kv)
     {
-        await using var w = f.CreateWriter(path, kv.Length);
+        await using var w = await f.CreateWriterAsync(path, kv.Length);
         await w.WriteAsync(Data());
         return;
 
@@ -45,7 +45,7 @@ public class InMemorySstReaderTests
         // Arrange
         var f = CreateFactory();
         await WriteAsync(f, "/r1", ("a", "1"));
-        var r = f.CreateReader("/r1");
+        var r = await f.CreateReaderAsync("/r1");
 
         // Act
         var got = await r.GetAsync("nope"u8.ToArray());
@@ -60,7 +60,7 @@ public class InMemorySstReaderTests
         // Arrange
         var f = CreateFactory();
         await WriteAsync(f, "/r2", ("a", "1"), ("b", "2"), ("c", "3"));
-        var r = f.CreateReader("/r2");
+        var r = await f.CreateReaderAsync("/r2");
 
         // Act
         var list = new List<DbEntry>();

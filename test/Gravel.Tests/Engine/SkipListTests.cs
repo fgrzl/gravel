@@ -24,7 +24,7 @@ public class SkipListTests
     }
 
     [Fact]
-    public void should_update_value_and_not_change_count_given_existing_key_when_insertorupdate()
+    public void should_update_value_and_not_change_count_given_existing_key_when_insert_or_update()
     {
         // Arrange
         var sl = new SkipList<int, string>();

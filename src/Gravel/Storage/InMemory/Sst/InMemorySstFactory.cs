@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Gravel.Abstractions.Storage.Sst;
 using Gravel.Internals;
 using Microsoft.Extensions.Options;
+using Gravel.Abstractions;
 
 namespace Gravel.Storage.InMemory.Sst;
 
@@ -17,15 +18,26 @@ public sealed class InMemorySstFactory : ISstFactory
             _options.CaseInsensitivePaths ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     }
 
-    public ISstReader CreateReader(string path)
+    public async ValueTask<ISstReader> CreateReaderAsync(string path, CancellationToken ct = default)
     {
-        if (_files.TryGetValue(path, out var sst)) return new InMemorySstReader(sst);
-        throw new FileNotFoundException(path);
+        if (ct.IsCancellationRequested) return await Task.FromCanceled<ISstReader>(ct).ConfigureAwait(false);
+        if (!_files.TryGetValue(path, out var sst)) throw new FileNotFoundException(path);
+
+        var reader = new InMemorySstReader(sst) as ISstReader;
+        if (reader is IAsyncInitializable ai)
+            await ai.InitializeAsync(ct).ConfigureAwait(false);
+        return reader;
     }
 
-    public ISstWriter CreateWriter(string path, int expectedEntries)
+    public async ValueTask<ISstWriter> CreateWriterAsync(string path, int expectedEntries, CancellationToken ct = default)
     {
-        return new InMemorySstWriter(sst => _files[path] = SealIfNeeded(sst));
+        if (ct.IsCancellationRequested) return await Task.FromCanceled<ISstWriter>(ct).ConfigureAwait(false);
+
+        // Writer will seal into the factory on dispose/finish
+        var writer = new InMemorySstWriter(sst => _files[path] = SealIfNeeded(sst)) as ISstWriter;
+        if (writer is IAsyncInitializable ai)
+            await ai.InitializeAsync(ct).ConfigureAwait(false);
+        return writer;
     }
 
     public IEnumerable<string> EnumerateLevelFiles(string basePath, int level)

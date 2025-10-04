@@ -17,16 +17,25 @@ public sealed class FileSstReader : ISstReader
 {
     const ulong RocksMagic = 0xDB4775248B80FB57UL;
     readonly ICompressorFactory _compressorFactory;
-    readonly FullFilter? _filter;
-    readonly List<(byte[] key, BlockHandle handle)> _indexEntries = [];
     readonly ILogger<FileSstReader> _logger;
-    readonly Dictionary<string, BlockHandle> _metaHandles = new();
     readonly string _path;
 
-    // Range tombstones loaded from metaindex block
+    // lazily populated during async init
+    FullFilter? _filter;
+    readonly List<(byte[] key, BlockHandle handle)> _indexEntries = [];
+    readonly Dictionary<string, BlockHandle> _metaHandles = new();
     readonly List<(byte[] Start, byte[] End, ulong Seq)> _rangeDeletes = [];
+
+    // internal mmapped stream
     readonly MemoryMappedFile _mmf;
     readonly MemoryMappedViewStream _stream;
+
+    // handles discovered from footer, loaded during initialization
+    readonly BlockHandle _metaHandle;
+    readonly BlockHandle _indexHandle;
+
+    // initialization task started by ctor and awaited by public APIs. Never call .Result; await instead.
+    readonly Task _initTask;
 
     public FileSstReader(string path, ICompressorFactory compressorFactory, ILogger<FileSstReader>? logger = null)
     {
@@ -41,7 +50,7 @@ public sealed class FileSstReader : ISstReader
         _mmf = MemoryMappedFile.CreateFromFile(path, FileMode.Open, null, length, MemoryMappedFileAccess.Read);
         _stream = _mmf.CreateViewStream(0, length, MemoryMappedFileAccess.Read);
 
-        // read footer (48 bytes at end of file)
+        // read footer (48 bytes at end of file) synchronously — small fixed read
         Span<byte> footer = stackalloc byte[48];
         if (length < 48) throw new InvalidDataException("File too small to be a Rocks/Pebble SST");
         var footerPos = length - 48;
@@ -52,11 +61,31 @@ public sealed class FileSstReader : ISstReader
         if (magic != RocksMagic)
             throw new InvalidDataException("Not a Rocks/Pebble SST");
 
-        var metaHandle = DecodeBlockHandle(footer[..20]);
-        var indexHandle = DecodeBlockHandle(footer.Slice(20, 20));
+        _metaHandle = DecodeBlockHandle(footer[..20]);
+        _indexHandle = DecodeBlockHandle(footer.Slice(20, 20));
 
+        // Kick off async initialization but do not block here. Errors will surface when awaiting InitializeAsync
+        _initTask = InitializeInternalAsync();
+
+        Log.SstOpenedRead(_logger, path, 64 * 1024);
+    }
+
+    /// <summary>
+    /// Ensure the reader has finished loading meta/index/filter/range-deletes.
+    /// Safe to call multiple times.
+    /// </summary>
+    public ValueTask InitializeAsync(CancellationToken ct = default)
+    {
+        if (ct.IsCancellationRequested) return ValueTask.FromCanceled(ct);
+        // Return a ValueTask wrapping the internal init task
+        return _initTask.IsCompletedSuccessfully ? ValueTask.CompletedTask : new ValueTask(_initTask);
+    }
+
+    // Internal initialization that loads metaindex, filter, ranges and index entries.
+    async Task InitializeInternalAsync()
+    {
         // load metaindex
-        var metaRaw = ReadBlock(metaHandle).Result;
+        var metaRaw = await ReadBlock(_metaHandle).ConfigureAwait(false);
         var metaEntries = ParseKeyValueBlock(metaRaw);
         foreach (var (k, v) in metaEntries)
         {
@@ -67,27 +96,25 @@ public sealed class FileSstReader : ISstReader
         // load filter if present
         if (_metaHandles.TryGetValue("filter.full", out var fh))
         {
-            var fb = ReadBlock(fh).Result;
+            var fb = await ReadBlock(fh).ConfigureAwait(false);
             _filter = new FullFilter(fb);
         }
 
         // load range deletes if present
         if (_metaHandles.TryGetValue("range.delete", out var rdh))
         {
-            var rdb = ReadBlock(rdh).Result;
+            var rdb = await ReadBlock(rdh).ConfigureAwait(false);
             _rangeDeletes.AddRange(ParseRangeDeleteBlock(rdb));
         }
 
         // load index
-        var indexRaw = ReadBlock(indexHandle).Result;
+        var indexRaw = await ReadBlock(_indexHandle).ConfigureAwait(false);
         var indexEntries = ParseKeyValueBlock(indexRaw);
         foreach (var (k, v) in indexEntries)
         {
             var bh = DecodeBlockHandle(v);
             _indexEntries.Add((k, bh));
         }
-
-        Log.SstOpenedRead(_logger, path, 64 * 1024);
     }
 
     public IReadOnlyList<(ReadOnlyMemory<byte> Start, ReadOnlyMemory<byte> End, ulong Seq)> GetRangeDeletes()
@@ -102,6 +129,9 @@ public sealed class FileSstReader : ISstReader
 
     public async ValueTask<DbEntry?> GetAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default)
     {
+        // ensure initialization completed
+        await InitializeAsync(ct).ConfigureAwait(false);
+
         if (_filter != null && !_filter.MightContain(key.Span))
             return null;
 
@@ -125,7 +155,7 @@ public sealed class FileSstReader : ISstReader
         if (found >= 0)
         {
             var handle = _indexEntries[found].handle;
-            var block = await ReadBlock(handle);
+            var block = await ReadBlock(handle).ConfigureAwait(false);
             foreach (var e in ParseDataBlock(block))
             {
                 var cmp = ByteComparer.Compare(e.Key.Span, key.Span);
@@ -148,9 +178,11 @@ public sealed class FileSstReader : ISstReader
     public async IAsyncEnumerable<DbEntry> ReadAllAsync(
         [EnumeratorCancellation] CancellationToken ct = default)
     {
+        await InitializeAsync(ct).ConfigureAwait(false);
+
         foreach (var (_, handle) in _indexEntries)
         {
-            var block = await ReadBlock(handle);
+            var block = await ReadBlock(handle).ConfigureAwait(false);
             foreach (var e in ParseDataBlock(block))
             {
                 ct.ThrowIfCancellationRequested();
@@ -163,6 +195,14 @@ public sealed class FileSstReader : ISstReader
 
     public ValueTask<bool> MightContainAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default)
     {
+        // eagerly await init if not ready
+        if (!_initTask.IsCompleted)
+            return new ValueTask<bool>(_initTask.ContinueWith(t =>
+            {
+                if (t.IsFaulted) throw t.Exception!;
+                return _filter == null || _filter.MightContain(key.Span);
+            }, TaskScheduler.Default));
+
         if (_filter == null) return ValueTask.FromResult(true);
         return ValueTask.FromResult(_filter.MightContain(key.Span));
     }
@@ -185,7 +225,7 @@ public sealed class FileSstReader : ISstReader
         _stream.Seek((long)handle.Offset, SeekOrigin.Begin);
         var len = (int)handle.Size;
         var buf = new byte[len];
-        await _stream.ReadExactlyAsync(buf);
+        await _stream.ReadExactlyAsync(buf).ConfigureAwait(false);
 
         // split into data, trailer
         var trailerLen = 5;
