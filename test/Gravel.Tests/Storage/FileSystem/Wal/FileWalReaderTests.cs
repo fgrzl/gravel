@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -7,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Wal;
+using Gravel.TestHelpers;
 using Xunit;
 
 namespace Gravel.Storage.FileSystem.Wal;
@@ -18,8 +18,9 @@ public class FileWalReaderTests : IAsyncLifetime
     public Task InitializeAsync()
     {
         // Arrange temp directory
-        _dir = Path.Combine(Path.GetTempPath(), "gravel-test-wal-reader-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_dir);
+        var td = new TempDirectory("gravel-test-wal-reader-");
+        _dir = td.Path;
+        // store temp dir wrapper in a field via closure? simpler: keep path and ensure cleanup in DisposeAsync
         return Task.CompletedTask;
     }
 
@@ -206,7 +207,7 @@ public class FileWalReaderTests : IAsyncLifetime
 
         // reader should return records from first segment only and stop when hitting corrupt second
         records.Should().NotBeEmpty();
-        records.All(r => r.TxnId == 1ul || (r.Entry is not null && r.Entry.Value.Sequence == 1ul)).Should()
+        records.All(r => r.TxnId == 1ul || r.Entry is not null && r.Entry.Value.Sequence == 1ul).Should()
             .BeTrue();
 
         // ensure it did not include any records from a hypothetical second segment

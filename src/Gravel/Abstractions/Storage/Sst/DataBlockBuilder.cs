@@ -11,7 +11,7 @@ sealed class DataBlockBuilder(int restartInterval = 16)
     int _entrySinceRestart;
     byte[] _prevKey = [];
 
-    public int CurrentSize => (int)_buf.Length + (_restarts.Count * 4) + 4;
+    public int CurrentSize => (int)_buf.Length + _restarts.Count * 4 + 4;
 
     public void Add(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
     {

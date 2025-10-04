@@ -38,7 +38,7 @@ public sealed class AdaptiveController : IDisposable
                 // thresholds are heuristic - hosts should tune these values.
                 var ratio = Math.Clamp(used / (1024.0 * 1024.0) / 1024.0, 0.0, 1.0); // used GB / 1GB
                 // invert ratio so high memory -> low rate
-                var newRate = _maxRate - ((_maxRate - _minRate) * ratio);
+                var newRate = _maxRate - (_maxRate - _minRate) * ratio;
                 _worker.UpdateBytesPerSecond(newRate);
                 await Task.Delay(_interval, _cts.Token).ConfigureAwait(false);
             }

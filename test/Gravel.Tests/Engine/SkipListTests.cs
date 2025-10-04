@@ -1,6 +1,6 @@
-using System;
 using System.Linq;
 using FluentAssertions;
+using Gravel.TestHelpers;
 using Xunit;
 
 namespace Gravel.Engine;
@@ -76,7 +76,7 @@ public class SkipListTests
     {
         // Arrange
         var sl = new SkipList<int, string>();
-        var rnd = new Random(123);
+        var rnd = TestRng.Create(123);
         var keys = Enumerable.Range(1, 20).OrderBy(_ => rnd.Next()).ToArray();
         foreach (var k in keys)
             sl.InsertOrUpdate(k, $"v{k}");

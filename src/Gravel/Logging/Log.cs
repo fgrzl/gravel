@@ -160,7 +160,8 @@ public static partial class Log
 
     [LoggerMessage(EventId = 5010, Level = LogLevel.Information,
         Message = "Opened SST for write {FinalPath} temp {TempPath} (buf={BufferSize}, sparse={Sparse})")]
-    public static partial void SstOpenedWrite(ILogger logger, string finalPath, string tempPath, int bufferSize,
+    public static partial void SstOpenedWrite(
+        ILogger logger, string finalPath, string tempPath, int bufferSize,
         int sparse);
 
     [LoggerMessage(EventId = 5011, Level = LogLevel.Information,
@@ -170,7 +171,8 @@ public static partial class Log
     [LoggerMessage(EventId = 5012, Level = LogLevel.Information,
         Message =
             "Flushed SST temp {TempPath} idxOffset={IndexOffset} bloomOffset={BloomOffset} min={MinLen} max={MaxLen}")]
-    public static partial void SstFlushed(ILogger logger, string tempPath, long indexOffset, long bloomOffset,
+    public static partial void SstFlushed(
+        ILogger logger, string tempPath, long indexOffset, long bloomOffset,
         int minLen, int maxLen);
 
     [LoggerMessage(EventId = 5013, Level = LogLevel.Information,

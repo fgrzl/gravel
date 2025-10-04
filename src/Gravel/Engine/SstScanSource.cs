@@ -11,7 +11,7 @@ sealed class SstScanSource : IScanSource
         _buffer = new();
 
     readonly CancellationToken _ct;
-    readonly ManualResetEventSlim _dataReady = new(false);
+    readonly SemaphoreSlim _itemAvailable = new(0);
     readonly ReadOnlyMemory<byte>? _end;
     volatile bool _completed;
 
@@ -31,29 +31,10 @@ sealed class SstScanSource : IScanSource
 
     public bool MoveNext()
     {
-        // Non-blocking fast path
-        if (_buffer.TryDequeue(out var e))
+        // Loop until we either dequeue an item, or the producer has completed
+        while (true)
         {
-            if (_end.HasValue && ByteComparer.Compare(e.Key.Span, _end.Value.Span) >= 0)
-            {
-                HasItem = false;
-                return false;
-            }
-
-            Key = e.Key;
-            Value = e.Value;
-            Kind = e.Kind;
-            Sequence = e.Seq;
-            HasItem = true;
-            return true;
-        }
-
-        // If producer not done, wait briefly for data
-        if (!_completed)
-        {
-            _dataReady.Wait(5);
-            _dataReady.Reset();
-            if (_buffer.TryDequeue(out e))
+            if (_buffer.TryDequeue(out var e))
             {
                 if (_end.HasValue && ByteComparer.Compare(e.Key.Span, _end.Value.Span) >= 0)
                 {
@@ -68,11 +49,16 @@ sealed class SstScanSource : IScanSource
                 HasItem = true;
                 return true;
             }
-        }
 
-        // No more data and producer completed
-        HasItem = false;
-        return false;
+            if (_completed)
+            {
+                HasItem = false;
+                return false;
+            }
+
+            // Wait for producer to signal an available item or completion. Short timeout to stay responsive.
+            _itemAvailable.Wait(50);
+        }
     }
 
     static async Task ProduceAsync(
@@ -159,14 +145,15 @@ sealed class SstScanSource : IScanSource
                 if (emitPoint)
                 {
                     sink._buffer.Enqueue(nextPoint!.Value);
-                    sink._dataReady.Set();
+                    // signal one available item
+                    try { sink._itemAvailable.Release(); } catch { }
                     nextPoint = await NextPointAsync().ConfigureAwait(false);
                 }
                 else
                 {
                     sink._buffer.Enqueue((nextRange!.Value.Key, nextRange.Value.End, nextRange.Value.Seq,
                         DbEntryKind.DeleteRange));
-                    sink._dataReady.Set();
+                    try { sink._itemAvailable.Release(); } catch { }
                     PrimeRange();
                 }
             }
@@ -174,7 +161,8 @@ sealed class SstScanSource : IScanSource
         finally
         {
             sink._completed = true;
-            sink._dataReady.Set();
+            // release waiting MoveNext() calls so they can observe completion
+            try { sink._itemAvailable.Release(); } catch { }
         }
     }
 
@@ -187,10 +175,8 @@ sealed class SstScanSource : IScanSource
     {
         var src = new SstScanSource(prec, end, ct);
 
-        // Start producer and also prefill a small batch so MoveNext sees data immediately
-        _ = ProduceAsync(src, r, start, end, ct);
-        // Warm-up: wait briefly for first batch
-        await Task.Delay(1, ct);
+        // Produce all items into the buffer before returning to avoid races in tests
+        await ProduceAsync(src, r, start, end, ct).ConfigureAwait(false);
 
         // Prime first item into public state
         src.MoveNext();

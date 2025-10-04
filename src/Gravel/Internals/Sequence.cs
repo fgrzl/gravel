@@ -14,7 +14,7 @@ public static class Sequence
 
         if (high < nowSec)
             // Clock has advanced beyond current high-second; start counter at 0.
-            return ((ulong)nowSec << 32) | 0u;
+            return (ulong)nowSec << 32 | 0u;
 
         if (high == nowSec)
         {
@@ -27,14 +27,14 @@ public static class Sequence
                     nowMillis = Timestamp.GetTimestamp();
                     var nextSec = (uint)(nowMillis / 1000);
                     if (nextSec > high)
-                        return ((ulong)nextSec << 32) | 0u;
+                        return (ulong)nextSec << 32 | 0u;
                 }
 
-            return ((ulong)high << 32) | (low + 1);
+            return (ulong)high << 32 | low + 1;
         }
 
         // high > nowSec (current is in the future relative to system clock):
         // increment counter to preserve monotonicity.
-        return ((ulong)high << 32) | (low + 1);
+        return (ulong)high << 32 | low + 1;
     }
 }

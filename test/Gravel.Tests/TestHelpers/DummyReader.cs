@@ -27,7 +27,7 @@ public sealed class DummyReader : ISstReader
 
     public IReadOnlyList<(ReadOnlyMemory<byte> Start, ReadOnlyMemory<byte> End, ulong Seq)> GetRangeDeletes()
     {
-        return Array.Empty<(ReadOnlyMemory<byte> Start, ReadOnlyMemory<byte> End, ulong Seq)>();
+        return [];
     }
 
     public void Dispose()
@@ -36,6 +36,7 @@ public sealed class DummyReader : ISstReader
 
     static async IAsyncEnumerable<DbEntry> Empty([EnumeratorCancellation] CancellationToken ct)
     {
+        await Task.CompletedTask;
         yield break;
     }
 }

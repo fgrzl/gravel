@@ -56,9 +56,9 @@ public sealed class BloomFilter
         var h2 = XxHash64.HashToUInt64(data, seed);
         for (var i = 0; i < HashFunctions; i++)
         {
-            var combined = (h1 + ((ulong)i * h2)) % (uint)Bits;
+            var combined = (h1 + (ulong)i * h2) % (uint)Bits;
             var idx = (int)combined;
-            _bits[idx / 8] |= (byte)(1 << (idx % 8));
+            _bits[idx / 8] |= (byte)(1 << idx % 8);
         }
     }
 
@@ -72,9 +72,9 @@ public sealed class BloomFilter
         var h2 = XxHash64.HashToUInt64(data, seed);
         for (var i = 0; i < HashFunctions; i++)
         {
-            var combined = (h1 + ((ulong)i * h2)) % (uint)Bits;
+            var combined = (h1 + (ulong)i * h2) % (uint)Bits;
             var idx = (int)combined;
-            if ((_bits[idx / 8] & (1 << (idx % 8))) == 0)
+            if ((_bits[idx / 8] & 1 << idx % 8) == 0)
                 return false;
         }
 

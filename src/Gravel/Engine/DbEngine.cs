@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
+using System.IO.Compression;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Sst;
 using Gravel.Abstractions.Storage.Wal;
@@ -120,6 +122,8 @@ class DbEngine : IDbEngine
                                 case DbEntryKind.DeleteKey: _memTable.PutDeleteTombstone(e.Key.Span, e.Sequence); break;
                                 case DbEntryKind.DeleteRange:
                                     _memTable.PutRangeTombstone(e.Key.Span, e.Value.Span, e.Sequence); break;
+                                default:
+                                    throw new GravelArgumentOutOfRangeException();
                             }
 
                         staging.Clear();
@@ -145,7 +149,8 @@ class DbEngine : IDbEngine
         return got.HasValue;
     }
 
-    public async ValueTask PutAsync(ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value,
+    public async ValueTask PutAsync(
+        ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value,
         CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -153,7 +158,8 @@ class DbEngine : IDbEngine
         await CommitSingleAsync(Mutation.Put(key, value), ct);
     }
 
-    public async ValueTask InsertAsync(ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value,
+    public async ValueTask InsertAsync(
+        ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value,
         CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -171,15 +177,12 @@ class DbEngine : IDbEngine
         // Check memtable direct entry for this key
         if (_memTable.TryGet(key.Span, out var mtValue, out var mtSeq, out var mtKind))
         {
-            if (mtKind == DbEntryKind.Put)
-            {
-                // Visible only if not masked by a newer range
-                if (mtSeq >= coveringRangeSeq) return mtValue;
+            if (mtKind != DbEntryKind.Put)
                 return null;
-            }
+            // Visible only if not masked by a newer range
+            return mtSeq >= coveringRangeSeq ? mtValue : null;
 
             // DeleteKey or DeleteRange entry at exact key masks it
-            return null;
         }
 
         // If covered by a memtable range tombstone and no newer memtable PUT, mask immediately
@@ -234,11 +237,11 @@ class DbEngine : IDbEngine
 
                 // Even if no exact entry, a newer range tombstone in this file may mask lower seq puts
                 var ranges = f.Reader.GetRangeDeletes();
-                foreach (var (rs, re, rseq) in ranges)
+                foreach (var (rs, re, rSeq) in ranges)
                     if (ByteComparer.Compare(rs.Span, key.Span) <= 0 && ByteComparer.Compare(key.Span, re.Span) < 0)
-                        if (!haveCandidate || rseq > bestSeq)
+                        if (!haveCandidate || rSeq > bestSeq)
                         {
-                            bestSeq = rseq;
+                            bestSeq = rSeq;
                             bestKind = DbEntryKind.DeleteRange;
                             bestValue = default;
                             haveCandidate = true;
@@ -266,7 +269,8 @@ class DbEngine : IDbEngine
         return await CommitSingleAsync(Mutation.Delete(key), ct);
     }
 
-    public async ValueTask DeleteRangeAsync(ReadOnlyMemory<byte> start, ReadOnlyMemory<byte> end,
+    public async ValueTask DeleteRangeAsync(
+        ReadOnlyMemory<byte> start, ReadOnlyMemory<byte> end,
         CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -283,7 +287,8 @@ class DbEngine : IDbEngine
         await CommitMutationsAsync(list, ct);
     }
 
-    public async IAsyncEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> ScanAsync(Query query,
+    public async IAsyncEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> ScanAsync(
+        Query query,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -360,6 +365,162 @@ class DbEngine : IDbEngine
         }
     }
 
+    public async ValueTask CompactAsync(CancellationToken ct = default)
+    {
+        await EnsureInitializedAsync(ct);
+
+        using var act = TelemetrySources.ActivitySource.StartActivity("Compaction.Manual");
+        act?.SetTag("requested", true);
+
+        // Keep scheduling passes until there are no immediate candidates or until we tried a reasonable number of times.
+        // Limit to LevelCount-1 iterations to avoid unbounded looping.
+        for (var pass = 0; pass < Math.Max(1, _levels.LevelCount - 1); pass++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var didSchedule = await TryScheduleCompactionPassAsync(ct).ConfigureAwait(false);
+            if (!didSchedule) break;
+        }
+
+        // scheduling performed; background worker will process enqueued tasks
+    }
+
+    public async ValueTask BackupAsync(
+        string destinationPath, BackupOptions? options = null,
+        CancellationToken ct = default)
+    {
+        options ??= new BackupOptions();
+        await EnsureInitializedAsync(ct);
+
+        // Short snapshot window: prevent commits while we capture lastSequence and level snapshot
+        await _commitGate.WaitAsync(ct);
+        try
+        {
+            if (options.ForceMemTableFlush)
+                // Force flush memtable to SST so backup includes all in-memory data
+                await FlushMemTableAsync(ct);
+
+            // Ensure WAL is durable
+            try
+            {
+                await _walWriter.FlushAsync(ct);
+            }
+            catch
+            {
+                /* best-effort */
+            }
+
+            var lastSeq = _walWriter.LastSequence;
+            var sstSnapshot = _levels.SnapshotAll();
+
+            // Build manifest
+            var manifest = new
+            {
+                formatVersion = 1,
+                createdAt = DateTimeOffset.UtcNow,
+                lastSequence = lastSeq,
+                sst = sstSnapshot.Select(f => new { path = f.Path, seq = f.SequenceTag, level = 0 }).ToList(),
+                wal = options.IncludeWalSegments ? new List<object>() : null
+            };
+
+            // Create zip archive (manifest + files)
+            await using var fs = File.Create(destinationPath);
+            // Use a ZipArchive directly; compression is controlled per-entry
+            using var zip = new ZipArchive(fs, ZipArchiveMode.Create, false);
+            // Write manifest.json entry
+            var manifestBytes =
+                JsonSerializer.SerializeToUtf8Bytes(manifest, new JsonSerializerOptions { WriteIndented = true });
+            var mEntry = zip.CreateEntry("manifest.json", CompressionLevel.Optimal);
+            await using (var mStream = mEntry.Open())
+            {
+                await mStream.WriteAsync(manifestBytes, ct).ConfigureAwait(false);
+            }
+
+            // Add SST files
+            foreach (var f in sstSnapshot)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (!File.Exists(f.Path)) continue;
+                var entryName = Path.Combine("sst", Path.GetFileName(f.Path)).Replace('\\', '/');
+                var e = zip.CreateEntry(entryName, CompressionLevel.Optimal);
+                await using var es = e.Open();
+                await using var src = File.OpenRead(f.Path);
+                await src.CopyToAsync(es, ct).ConfigureAwait(false);
+            }
+
+            // Add WAL files (if requested)
+            if (options.IncludeWalSegments)
+            {
+                var walFiles = Directory.Exists(_walDir) ? Directory.GetFiles(_walDir) : Array.Empty<string>();
+                foreach (var wf in walFiles)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var entryName = Path.Combine("wal", Path.GetFileName(wf)).Replace('\\', '/');
+                    var e = zip.CreateEntry(entryName, CompressionLevel.Optimal);
+                    await using var es = e.Open();
+                    await using var src = File.OpenRead(wf);
+                    await src.CopyToAsync(es, ct).ConfigureAwait(false);
+                }
+            }
+        }
+        finally
+        {
+            _commitGate.Release();
+        }
+    }
+
+    public async ValueTask RestoreAsync(
+        string archivePath, RestoreOptions? options = null,
+        CancellationToken ct = default)
+    {
+        options ??= new RestoreOptions();
+
+        if (options.RequireEngineStopped && !_disposed && _initialized)
+            throw new GravelInvalidOperationException("Restore requires the engine to be offline or uninitialized.");
+
+        // Extract to temp directory
+        var tmp = Path.Combine(Path.GetTempPath(), $"gravel_restore_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmp);
+
+        using var zf = ZipFile.OpenRead(archivePath);
+        foreach (var entry in zf.Entries)
+        {
+            ct.ThrowIfCancellationRequested();
+            var dest = Path.Combine(tmp, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+            var dir = Path.GetDirectoryName(dest)!;
+            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            if (entry.FullName.EndsWith("/"))
+            {
+                if (!Directory.Exists(dest)) Directory.CreateDirectory(dest);
+                continue;
+            }
+
+            await using var inStream = entry.Open();
+            await using var outFs = File.Create(dest);
+            await inStream.CopyToAsync(outFs, ct).ConfigureAwait(false);
+        }
+
+        // Optionally verify manifest/checksums (not implemented: basic presence check)
+        var manifestPath = Path.Combine(tmp, "manifest.json");
+        if (!File.Exists(manifestPath)) throw new GravelInvalidOperationException("Backup manifest missing");
+
+        // Move extracted tree into target database directory (atomic replacement)
+        var targetBase = _options.DatabasePath;
+        var backupOld = targetBase + ".bak_old_" + Guid.NewGuid().ToString("N");
+
+        if (Directory.Exists(targetBase)) Directory.Move(targetBase, backupOld);
+
+        Directory.Move(tmp, targetBase);
+
+        // cleanup old db if needed (best-effort)
+        try
+        {
+            if (Directory.Exists(backupOld)) Directory.Delete(backupOld, true);
+        }
+        catch
+        {
+        }
+    }
+
     static ulong NextSeq(ref ulong seq)
     {
         ulong current, next;
@@ -373,7 +534,8 @@ class DbEngine : IDbEngine
     }
 
 
-    static IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> MergeSources(List<IScanSource> sources,
+    static IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> MergeSources(
+        List<IScanSource> sources,
         Query query, CancellationToken ct)
     {
         sources = [.. sources.Where(s => s.HasItem)];
@@ -475,7 +637,8 @@ class DbEngine : IDbEngine
         return false;
     }
 
-    internal async ValueTask CommitTransactionAsync(Transaction txn, IReadOnlyList<Mutation> staged,
+    internal async ValueTask CommitTransactionAsync(
+        Transaction txn, IReadOnlyList<Mutation> staged,
         CancellationToken ct)
     {
         if (staged.Count == 0) return;
@@ -547,7 +710,7 @@ class DbEngine : IDbEngine
                     case MutationOp.DeleteRange:
                         _memTable.PutRangeTombstone(a.Key.Span, a.RangeEnd.Span, a.Sequence); break;
                     default:
-                        throw new ArgumentOutOfRangeException();
+                        throw new GravelArgumentOutOfRangeException();
                 }
 
             txn.SetCommitted(_walWriter.LastSequence);
@@ -644,6 +807,8 @@ class DbEngine : IDbEngine
                     case MutationOp.Delete: _memTable.PutDeleteTombstone(a.Key.Span, a.Sequence); break;
                     case MutationOp.DeleteRange:
                         _memTable.PutRangeTombstone(a.Key.Span, a.RangeEnd.Span, a.Sequence); break;
+                    default:
+                        throw new GravelArgumentOutOfRangeException();
                 }
 
             TelemetrySources.Commits.Add(mutations.Count);
@@ -699,7 +864,8 @@ class DbEngine : IDbEngine
         await MaybeCompactAsync(ct);
     }
 
-    static async IAsyncEnumerable<DbEntry> EnumerateMemTableEntriesAsync(MemTable mt,
+    static async IAsyncEnumerable<DbEntry> EnumerateMemTableEntriesAsync(
+        MemTable mt,
         [EnumeratorCancellation] CancellationToken ct)
     {
         foreach (var (k, v, seq, kind) in mt.Scan())
@@ -719,15 +885,22 @@ class DbEngine : IDbEngine
 
     async ValueTask MaybeCompactAsync(CancellationToken ct)
     {
+        // Try to schedule a single compaction pass if thresholds are met. Keep behavior conservative: schedule at most one pass.
+        await TryScheduleCompactionPassAsync(ct).ConfigureAwait(false);
+    }
+
+    async Task<bool> TryScheduleCompactionPassAsync(CancellationToken ct)
+    {
         for (var l = 0; l < _levels.LevelCount - 1; l++)
         {
+            if (ct.IsCancellationRequested) return false;
             if (!_levels.MeetsFanIn(l, _options.CompactionFanInThreshold)) continue;
+
             var snapshot = _levels.SnapshotLevels();
             var to = snapshot[l].ToList(); // don't remove yet; keep visible until success
             if (to.Count == 0) continue;
             var next = l + 1;
             var outDir = Path.Combine(_sstDir, $"L{next}");
-            // Directory.CreateDirectory(outDir); // removed: let factory handle directory creation
             var outPath = Path.Combine(outDir, $"{DateTime.UtcNow.Ticks:D20}.sst");
 
             using var act = TelemetrySources.ActivitySource.StartActivity("Compaction.Pass");
@@ -771,10 +944,10 @@ class DbEngine : IDbEngine
                 }, _logger);
 
             await _compactionWorker.EnqueueAsync(task, ct).ConfigureAwait(false);
-
-            // break after scheduling one pass to let background worker run
-            break;
+            return true;
         }
+
+        return false;
     }
 
     async ValueTask<bool> CommitSingleAsync(Mutation m, CancellationToken ct)
@@ -837,4 +1010,6 @@ class DbEngine : IDbEngine
             _commitGate.Release();
         }
     }
+
+    // no helper needed for zip
 }

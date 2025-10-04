@@ -125,8 +125,8 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
                     for (var i = 0; i < 16; i++)
                     {
                         var hi = ParseHexChar(chars[2 * i]);
-                        var lo = ParseHexChar(chars[(2 * i) + 1]);
-                        destination[i] = (byte)((hi << 4) | lo);
+                        var lo = ParseHexChar(chars[2 * i + 1]);
+                        destination[i] = (byte)(hi << 4 | lo);
                     }
 
                     return 16;
@@ -284,7 +284,7 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
     {
         // Use xxHash64.Intrinsics where available
         var h = XxHash64.HashToUInt64(span);
-        return (int)(h ^ (h >> 32));
+        return (int)(h ^ h >> 32);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -113,7 +113,7 @@ public static class Timestamp
             if (seconds == 0)
                 throw new InvalidOperationException("Zero timestamp");
 
-            var ntpSeconds = seconds + (fraction / (double)uint.MaxValue);
+            var ntpSeconds = seconds + fraction / (double)uint.MaxValue;
             var unixSeconds = ntpSeconds - 2208988800; // NTP -> Unix epoch
 
             utc = DateTimeOffset.FromUnixTimeSeconds((long)unixSeconds).UtcDateTime;

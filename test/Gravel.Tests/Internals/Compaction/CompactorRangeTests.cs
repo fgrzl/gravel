@@ -70,10 +70,8 @@ public class CompactorRangeTests : IAsyncLifetime
 
     static async Task<string> WriteMergedAsync(IEnumerable<DbEntry> merged, string path)
     {
-        await using (var w = new FileSstWriter(path, merged.Count(), 64, 16 * 1024, null, NullLogger.Instance))
-        {
-            await w.WriteAsync(ToAsync(merged));
-        }
+        await using var w = new FileSstWriter(path, merged.Count(), 64, 16 * 1024, null, NullLogger.Instance);
+        await w.WriteAsync(ToAsync(merged));
 
         return path;
     }

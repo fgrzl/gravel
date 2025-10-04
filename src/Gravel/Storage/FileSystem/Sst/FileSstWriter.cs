@@ -29,7 +29,8 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
 
     byte[] _lastKey = [];
 
-    public FileSstWriter(string path,
+    public FileSstWriter(
+        string path,
         int expectedEntries,
         int bufferSize,
         int blockSize,
@@ -146,7 +147,7 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
     {
         var buf = new byte[userKey.Length + 8];
         userKey.CopyTo(buf);
-        var trailer = (seq << 8) | type;
+        var trailer = seq << 8 | type;
         BinaryPrimitives.WriteUInt64LittleEndian(buf.AsSpan(userKey.Length, 8), trailer);
         return buf;
     }

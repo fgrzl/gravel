@@ -111,7 +111,7 @@ public class SnappyCodecTests
         // varint 5
         buf[pos++] = 0x05;
         // tag literal length 6 => stored as (len-1)<<2 | 0 = (5<<2)|0
-        buf[pos++] = (5 << 2) | 0;
+        buf[pos++] = 5 << 2 | 0;
         // 6 bytes of data
         for (var i = 0; i < 6; i++) buf[pos++] = (byte)i;
 
@@ -132,10 +132,10 @@ public class SnappyCodecTests
             // varint 10
             ms.WriteByte(0x0A);
             // literal len 4 (len-1=3 -> (3<<2)|0)
-            ms.WriteByte((3 << 2) | 0);
+            ms.WriteByte(3 << 2 | 0);
             ms.Write([1, 2, 3, 4]);
             // COPY_1: kind=1, len=4 -> (0<<2)|1
-            ms.WriteByte((0 << 2) | 1);
+            ms.WriteByte(0 << 2 | 1);
             // offset low byte = 0 -> invalid
             ms.WriteByte(0x00);
             buf = ms.ToArray();
@@ -156,10 +156,10 @@ public class SnappyCodecTests
         using (var ms = new MemoryStream())
         {
             ms.WriteByte(0x0A); // expected 10
-            ms.WriteByte((1 << 2) | 0); // literal len 2
+            ms.WriteByte(1 << 2 | 0); // literal len 2
             ms.Write([9, 9]);
             // COPY_2 tag with len=1 (encoded len-1=0)
-            ms.WriteByte((0 << 2) | 2);
+            ms.WriteByte(0 << 2 | 2);
             // offset 0x0100 -> 256, out of bounds when w=2
             ms.Write([0x00, 0x01]);
             buf = ms.ToArray();

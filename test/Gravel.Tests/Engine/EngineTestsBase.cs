@@ -111,7 +111,7 @@ public abstract class EngineTestsBase
             e.Key.Length.Should().BeGreaterThan(0);
         }
 
-        enumerated.Should().BeGreaterOrEqualTo(2);
+        enumerated.Should().BeGreaterThanOrEqualTo(2);
     }
 
     [Fact]

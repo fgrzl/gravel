@@ -69,7 +69,7 @@ public class TimestampTests
         var t2 = Timestamp.GetTimestamp();
 
         // Assert
-        t2.Should().BeGreaterOrEqualTo(t1);
+        t2.Should().BeGreaterThanOrEqualTo(t1);
     }
 
     [Fact]

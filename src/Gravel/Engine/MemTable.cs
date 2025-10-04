@@ -7,9 +7,8 @@ namespace Gravel.Engine;
 ///     In-memory MemTable backed by a skip list.
 ///     Stores key/value pairs with sequence numbers for versioning.
 ///     Uses an EntryPool and ArrayPool
-///     <byte>
-///         to minimize allocations.
-///         Thread-safety: all public methods are synchronized with a lock.
+///     to minimize allocations.
+///     Thread-safety: all public methods are synchronized with a lock.
 /// </summary>
 public sealed class MemTable
 {
@@ -72,8 +71,7 @@ public sealed class MemTable
             for (var i = level - 1; i >= 0; i--)
             {
                 var forward = x.Forward;
-                Node? f;
-                while ((f = forward[i]) != null && ByteComparer.Compare(f.Entry.KeySpan, key) < 0)
+                while (forward[i] is { } f && ByteComparer.Compare(f.Entry.KeySpan, key) < 0)
                 {
                     x = f;
                     forward = x.Forward;
@@ -89,8 +87,18 @@ public sealed class MemTable
                 {
                     x.Entry.Key = k;
                     x.Entry.KeyLen = key.Length;
-                    x.Entry.Value = v;
-                    x.Entry.ValueLen = value.Length;
+                    // ensure that for delete-key we clear any previous value bytes
+                    if (kind == DbEntryKind.DeleteKey)
+                    {
+                        x.Entry.Value = Array.Empty<byte>();
+                        x.Entry.ValueLen = 0;
+                    }
+                    else
+                    {
+                        x.Entry.Value = v;
+                        x.Entry.ValueLen = value.Length;
+                    }
+
                     x.Entry.Seq = seq;
                     x.Entry.Kind = kind;
 
@@ -132,8 +140,7 @@ public sealed class MemTable
             for (var i = level - 1; i >= 0; i--)
             {
                 var forward = x.Forward;
-                Node? f;
-                while ((f = forward[i]) != null && ByteComparer.Compare(f.Entry.KeySpan, key) < 0)
+                while (forward[i] is { } f && ByteComparer.Compare(f.Entry.KeySpan, key) < 0)
                 {
                     x = f;
                     forward = x.Forward;
@@ -145,9 +152,8 @@ public sealed class MemTable
             {
                 seq = x.Entry.Seq;
                 kind = x.Entry.Kind;
-                if (kind == DbEntryKind.Put)
-                    value = x.Entry.ValueMemory;
-                else if (kind == DbEntryKind.DeleteRange)
+                // use explicit comparisons to avoid any pattern matching ambiguity
+                if (kind == DbEntryKind.Put || kind == DbEntryKind.DeleteRange)
                     value = x.Entry.ValueMemory;
                 else
                     value = null;
@@ -196,8 +202,7 @@ public sealed class MemTable
             for (var i = level - 1; i >= 0; i--)
             {
                 var forward = x.Forward;
-                Node? f;
-                while ((f = forward[i]) != null && ByteComparer.Compare(f.Entry.KeySpan, key) < 0)
+                while (forward[i] is { } f && ByteComparer.Compare(f.Entry.KeySpan, key) < 0)
                 {
                     x = f;
                     forward = x.Forward;
@@ -207,7 +212,8 @@ public sealed class MemTable
             }
 
             x = x.Forward[0];
-            if (x == null || ByteComparer.Compare(x.Entry.KeySpan, key) != 0) return false;
+            if (x == null || ByteComparer.Compare(x.Entry.KeySpan, key) != 0)
+                return false;
 
             for (var i = 0; i < _level; i++)
                 if (update[i]!.Forward[i] == x)
@@ -222,7 +228,8 @@ public sealed class MemTable
     }
 
     public IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value, ulong Seq, DbEntryKind Kind)> Scan(
-        ReadOnlyMemory<byte>? start = null, ReadOnlyMemory<byte>? end = null)
+        ReadOnlyMemory<byte>? start = null,
+        ReadOnlyMemory<byte>? end = null)
     {
         Interlocked.Increment(ref _scanEnumerations);
         // Snapshot entries under lock into arrays so enumeration is safe from concurrent mutation.
@@ -263,7 +270,7 @@ public sealed class MemTable
             yield return (k, v, s, kind);
     }
 
-    int RandomLevel()
+    static int RandomLevel()
     {
         var lvl = 1;
         // use shared Random to avoid per-instance cost
@@ -288,7 +295,7 @@ public sealed class MemTable
             int lo = 0, hi = _ranges.Count - 1, pos = _ranges.Count;
             while (lo <= hi)
             {
-                var mid = (lo + hi) >>> 1;
+                var mid = lo + hi >>> 1;
                 var cmp = ByteComparer.Compare(_ranges[mid].Start, start);
                 if (cmp < 0)
                 {
@@ -324,7 +331,7 @@ public sealed class MemTable
             int lo = 0, hi = _ranges.Count - 1, ub = _ranges.Count;
             while (lo <= hi)
             {
-                var mid = (lo + hi) >>> 1;
+                var mid = lo + hi >>> 1;
                 var cmp = ByteComparer.Compare(_ranges[mid].Start, key);
                 if (cmp <= 0)
                 {
@@ -340,10 +347,14 @@ public sealed class MemTable
             for (var i = ub - 1; i >= 0; i--)
             {
                 var r = _ranges[i];
-                if (ByteComparer.Compare(r.Start, key) > 0) break;
-                if (ByteComparer.Compare(key, r.End) < 0)
-                    if (r.Seq > coveringSeq)
-                        coveringSeq = r.Seq;
+                if (ByteComparer.Compare(r.Start, key) > 0)
+                    break;
+
+                if (ByteComparer.Compare(key, r.End) >= 0)
+                    continue;
+
+                if (r.Seq > coveringSeq)
+                    coveringSeq = r.Seq;
             }
 
             return coveringSeq > 0;
@@ -360,11 +371,11 @@ public sealed class MemTable
             for (var i = _ranges.Count - 1; i >= 0; i--)
             {
                 var r = _ranges[i];
-                if (predicate(r.Start, r.End, r.Seq))
-                {
-                    _ranges.RemoveAt(i);
-                    removed++;
-                }
+                if (!predicate(r.Start, r.End, r.Seq))
+                    continue;
+
+                _ranges.RemoveAt(i);
+                removed++;
             }
 
             return removed;

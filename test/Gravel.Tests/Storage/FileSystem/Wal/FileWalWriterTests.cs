@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -7,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Wal;
+using Gravel.TestHelpers;
 using Xunit;
 
 namespace Gravel.Storage.FileSystem.Wal;
@@ -18,8 +18,8 @@ public class FileWalWriterTests : IAsyncLifetime
     public Task InitializeAsync()
     {
         // Arrange temp wal directory
-        _dir = Path.Combine(Path.GetTempPath(), "gravel-test-wal-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_dir);
+        var td = new TempDirectory("gravel-test-wal-");
+        _dir = td.Path;
         return Task.CompletedTask;
     }
 

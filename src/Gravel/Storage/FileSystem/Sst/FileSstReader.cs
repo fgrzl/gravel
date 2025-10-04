@@ -100,7 +100,7 @@ public sealed class FileSstReader : ISstReader
         int lo = 0, hi = _indexEntries.Count - 1, found = -1;
         while (lo <= hi)
         {
-            var mid = (lo + hi) >>> 1;
+            var mid = lo + hi >>> 1;
             var cmp = ByteComparer.Compare(key.Span, _indexEntries[mid].key);
             if (cmp <= 0)
             {
@@ -255,10 +255,10 @@ public sealed class FileSstReader : ISstReader
     static IEnumerable<DbEntry> ParseDataBlock(byte[] raw)
     {
         var restartsCount = BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(raw.Length - 4));
-        var restartsOff = raw.Length - 4 - (restartsCount * 4);
+        var restartsOff = raw.Length - 4 - restartsCount * 4;
         var restarts = new int[restartsCount];
         for (var i = 0; i < restartsCount; i++)
-            restarts[i] = BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(restartsOff + (i * 4), 4));
+            restarts[i] = BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(restartsOff + i * 4, 4));
 
         var pos = 0;
         var prevKey = Array.Empty<byte>();
@@ -305,7 +305,7 @@ public sealed class FileSstReader : ISstReader
         int lo = 0, hi = _rangeDeletes.Count - 1;
         while (lo <= hi)
         {
-            var mid = (lo + hi) >>> 1;
+            var mid = lo + hi >>> 1;
             var cmp = ByteComparer.Compare(_rangeDeletes[mid].Start, key);
             if (cmp <= 0) lo = mid + 1;
             else hi = mid - 1;

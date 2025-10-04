@@ -53,7 +53,7 @@ public static class SnappyCodec
             var kind = tag & 0x03;
             if (kind == 0)
             {
-                var literalLen = (tag >> 2) & 0x3F;
+                var literalLen = tag >> 2 & 0x3F;
                 if (literalLen < 60)
                 {
                     literalLen += 1;
@@ -61,12 +61,12 @@ public static class SnappyCodec
                 else
                 {
                     var extra = literalLen - 59;
-                    if (extra < 1 || extra > 4) throw new InvalidDataException("Invalid literal length encoding.");
+                    if (extra is < 1 or > 4) throw new InvalidDataException("Invalid literal length encoding.");
                     if (pos + extra > n)
                         throw new InvalidDataException("Unexpected end of stream reading literal length.");
                     uint lenm1 = 0;
                     for (var i = 0; i < extra; i++)
-                        lenm1 |= (uint)input[pos++] << (8 * i);
+                        lenm1 |= (uint)input[pos++] << 8 * i;
                     literalLen = (int)(lenm1 + 1);
                 }
 
@@ -82,7 +82,7 @@ public static class SnappyCodec
             }
             else if (kind == 1)
             {
-                var len = ((tag >> 2) & 0x07) + 4;
+                var len = (tag >> 2 & 0x07) + 4;
                 if (pos >= n) throw new InvalidDataException("Unexpected end of stream reading COPY_1 offset.");
                 var offset = input[pos++];
                 if (offset == 0) throw new InvalidDataException("Invalid COPY offset 0.");
@@ -93,7 +93,7 @@ public static class SnappyCodec
             }
             else if (kind == 2)
             {
-                var len = ((tag >> 2) & 0x3F) + 1;
+                var len = (tag >> 2 & 0x3F) + 1;
                 if (pos + 2 > n) throw new InvalidDataException("Unexpected end of stream reading COPY_2 offset.");
                 var offset = BinaryPrimitives.ReadUInt16LittleEndian(input.Slice(pos, 2));
                 pos += 2;
@@ -105,7 +105,7 @@ public static class SnappyCodec
             }
             else
             {
-                var len = ((tag >> 2) & 0x3F) + 1;
+                var len = (tag >> 2 & 0x3F) + 1;
                 if (pos + 4 > n) throw new InvalidDataException("Unexpected end of stream reading COPY_4 offset.");
                 var offset = BinaryPrimitives.ReadInt32LittleEndian(input.Slice(pos, 4));
                 pos += 4;
@@ -129,7 +129,7 @@ public static class SnappyCodec
         var i = dstOffset;
         while (value >= 0x80)
         {
-            dst[i++] = (byte)((value & 0x7Fu) | 0x80u);
+            dst[i++] = (byte)(value & 0x7Fu | 0x80u);
             value >>= 7;
         }
 
@@ -170,7 +170,7 @@ public static class SnappyCodec
 
         if (len <= 60)
         {
-            dst[pos++] = (byte)(((len - 1) << 2) | 0);
+            dst[pos++] = (byte)(len - 1 << 2 | 0);
         }
         else
         {
@@ -182,9 +182,9 @@ public static class SnappyCodec
             else extra = 4;
 
             var tagUpper = 60 + (extra - 1);
-            dst[pos++] = (byte)((tagUpper << 2) | 0);
+            dst[pos++] = (byte)(tagUpper << 2 | 0);
             for (var i = 0; i < extra; i++)
-                dst[pos++] = (byte)((lenm1 >> (8 * i)) & 0xFF);
+                dst[pos++] = (byte)(lenm1 >> 8 * i & 0xFF);
         }
 
         literal.CopyTo(dst[pos..]);
@@ -197,7 +197,7 @@ public static class SnappyCodec
     {
         if (len < 4) len = 4;
         if (len > 11) len = 11;
-        dst[0] = (byte)(((len - 4) << 2) | 1);
+        dst[0] = (byte)(len - 4 << 2 | 1);
         dst[1] = (byte)(offset & 0xFF);
         return 2;
     }
@@ -207,7 +207,7 @@ public static class SnappyCodec
     {
         if (len < 1) len = 1;
         if (len > 64) len = 64;
-        dst[0] = (byte)(((len - 1) << 2) | 2);
+        dst[0] = (byte)(len - 1 << 2 | 2);
         BinaryPrimitives.WriteUInt16LittleEndian(dst.Slice(1, 2), (ushort)offset);
         return 3;
     }
@@ -217,7 +217,7 @@ public static class SnappyCodec
     {
         if (len < 1) len = 1;
         if (len > 64) len = 64;
-        dst[0] = (byte)(((len - 1) << 2) | 3);
+        dst[0] = (byte)(len - 1 << 2 | 3);
         BinaryPrimitives.WriteInt32LittleEndian(dst.Slice(1, 4), offset);
         return 5;
     }

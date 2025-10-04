@@ -13,7 +13,7 @@ public static class Varint
         while (v >= 0x80)
         {
             if (i >= dst.Length) throw new ArgumentException("Destination span too small to write varint", nameof(dst));
-            dst[i++] = (byte)((v & 0x7FUL) | 0x80UL);
+            dst[i++] = (byte)(v & 0x7FUL | 0x80UL);
             v >>= 7;
         }
 

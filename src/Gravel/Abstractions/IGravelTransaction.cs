@@ -24,14 +24,16 @@ public interface IGravelTransaction : IAsyncDisposable
     ///     Stage a put (insert/update) operation within the transaction.
     ///     Optional TTL will be enforced at query time and during compaction.
     /// </summary>
-    ValueTask PutAsync(ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value, TimeSpan? ttl = null,
+    ValueTask PutAsync(
+        ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value, TimeSpan? ttl = null,
         CancellationToken ct = default);
 
     /// <summary>
     ///     Stage an insert operation within the transaction.
     ///     Insert fails at commit if the key already exists in the snapshot view.
     /// </summary>
-    ValueTask InsertAsync(ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value, TimeSpan? ttl = null,
+    ValueTask InsertAsync(
+        ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value, TimeSpan? ttl = null,
         CancellationToken ct = default);
 
     /// <summary>

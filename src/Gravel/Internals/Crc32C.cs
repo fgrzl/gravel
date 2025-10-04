@@ -10,7 +10,7 @@ public static class Crc32C
         foreach (var b in data)
         {
             var idx = (byte)(crc ^ b);
-            crc = Table[idx] ^ (crc >> 8);
+            crc = Table[idx] ^ crc >> 8;
         }
 
         return ~crc;
@@ -24,7 +24,7 @@ public static class Crc32C
         {
             var c = i;
             for (var j = 0; j < 8; j++)
-                c = (c & 1) != 0 ? poly ^ (c >> 1) : c >> 1;
+                c = (c & 1) != 0 ? poly ^ c >> 1 : c >> 1;
             t[i] = c;
         }
 

@@ -11,7 +11,8 @@ public static class Compactor
         return files.Count * 1024;
     }
 
-    public static async IAsyncEnumerable<DbEntry> MergeLevelFilesAsync(List<SstFile> files,
+    public static async IAsyncEnumerable<DbEntry> MergeLevelFilesAsync(
+        List<SstFile> files,
         [EnumeratorCancellation] CancellationToken ct)
     {
         // Build enumerators for point entries and synthetic range entries from each file
@@ -82,8 +83,8 @@ public static class Compactor
                     heap.RemoveAt(0);
 
                     if (dupEntry.Sequence > winner.Sequence ||
-                        (dupEntry.Sequence == winner.Sequence && dupEntry.Kind == DbEntryKind.DeleteKey &&
-                         winner.Kind == DbEntryKind.Put))
+                        dupEntry.Sequence == winner.Sequence && dupEntry.Kind == DbEntryKind.DeleteKey &&
+                        winner.Kind == DbEntryKind.Put)
                         winner = dupEntry;
 
                     if (await enumerators[dupSrc].MoveNextAsync())
@@ -135,14 +136,15 @@ public static class Compactor
         }
     }
 
-    static void InsertOrUpdateRange(List<(byte[] Start, byte[] End, ulong Seq)> ranges, byte[] start, byte[] end,
+    static void InsertOrUpdateRange(
+        List<(byte[] Start, byte[] End, ulong Seq)> ranges, byte[] start, byte[] end,
         ulong seq)
     {
         // keep list sorted by start; insert position via binary search
         int lo = 0, hi = ranges.Count - 1, pos = ranges.Count;
         while (lo <= hi)
         {
-            var mid = (lo + hi) >>> 1;
+            var mid = lo + hi >>> 1;
             var cmp = ByteComparer.Compare(ranges[mid].Start, start);
             if (cmp <= 0)
             {

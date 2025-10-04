@@ -27,7 +27,8 @@ public sealed class MergeFilesCompactionTask : ICompactionTask
 
     Task? _work;
 
-    public MergeFilesCompactionTask(List<SstFile> inputs, string outPath, ISstFactory sstFactory,
+    public MergeFilesCompactionTask(
+        List<SstFile> inputs, string outPath, ISstFactory sstFactory,
         int expectedEntries, Action<string, List<SstFile>> onSuccess, ILogger? logger = null)
     {
         _inputs = inputs;

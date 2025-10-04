@@ -5,7 +5,8 @@ namespace Gravel.Telemetry;
 
 public static class TelemetryHelper
 {
-    public static ActivityScope StartActivityScope(ActivitySource activitySource, ILogger logger, string name,
+    public static ActivityScope StartActivityScope(
+        ActivitySource activitySource, ILogger logger, string name,
         ActivityKind kind, params KeyValuePair<string, object?>[] tags)
     {
         var act = activitySource?.StartActivity(name, kind);

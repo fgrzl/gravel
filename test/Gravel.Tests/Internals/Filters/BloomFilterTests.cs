@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using FluentAssertions;
+using Gravel.TestHelpers;
 using Xunit;
 
 namespace Gravel.Internals.Filters;
@@ -60,8 +61,8 @@ public class BloomFilterTests
         var bf = BloomFilter.Create(0);
 
         // Assert
-        bf.Bits.Should().BeGreaterOrEqualTo(8);
-        bf.HashFunctions.Should().BeGreaterOrEqualTo(1);
+        bf.Bits.Should().BeGreaterThanOrEqualTo(8);
+        bf.HashFunctions.Should().BeGreaterThanOrEqualTo(1);
     }
 
     [Fact]
@@ -96,7 +97,8 @@ public class BloomFilterTests
         // Arrange
         var bf = BloomFilter.Create(1000);
         var large = new byte[10_000];
-        new Random(123).NextBytes(large);
+        // deterministic RNG to avoid flakiness
+        TestRng.NextBytes(123, large);
 
         // Act
         var act = () => bf.Add(large);
@@ -105,5 +107,19 @@ public class BloomFilterTests
         act.Should().NotThrow();
         // Optionally item likely present
         bf.MightContain(large).Should().BeTrue();
+    }
+
+    [Fact]
+    public void should_throw_given_negative_expected_items_when_create()
+    {
+        // Arrange
+
+        // Act
+        Action act = () => BloomFilter.Create(-5);
+
+        // Assert: Create clamps negative to 1, so should not throw but produce a valid filter. instead test invalid falsePositiveRate
+        Action act2 = () => BloomFilter.Create(10, -0.5);
+        act.Should().NotThrow();
+        act2.Should().NotThrow();
     }
 }

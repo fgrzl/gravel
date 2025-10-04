@@ -22,7 +22,8 @@ class Transaction(DbEngine dbEngine, ulong txnId, ulong beginSequence) : IGravel
         return got.HasValue;
     }
 
-    public ValueTask PutAsync(ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value, TimeSpan? ttl = null,
+    public ValueTask PutAsync(
+        ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value, TimeSpan? ttl = null,
         CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
@@ -30,7 +31,8 @@ class Transaction(DbEngine dbEngine, ulong txnId, ulong beginSequence) : IGravel
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask InsertAsync(ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value, TimeSpan? ttl = null,
+    public ValueTask InsertAsync(
+        ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value, TimeSpan? ttl = null,
         CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
@@ -45,7 +47,8 @@ class Transaction(DbEngine dbEngine, ulong txnId, ulong beginSequence) : IGravel
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask DeleteRangeAsync(ReadOnlyMemory<byte> start, ReadOnlyMemory<byte> end,
+    public ValueTask DeleteRangeAsync(
+        ReadOnlyMemory<byte> start, ReadOnlyMemory<byte> end,
         CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();

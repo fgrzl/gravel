@@ -98,7 +98,7 @@ public sealed class SparseIndex
         int lo = 0, hi = Count - 1, pos = -1;
         while (lo <= hi)
         {
-            var mid = (lo + hi) >> 1;
+            var mid = lo + hi >> 1;
             var cmp = ByteComparer.Compare(_blob.AsSpan(starts[mid], lens[mid]), key);
 
             if (cmp <= 0)

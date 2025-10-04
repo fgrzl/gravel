@@ -29,7 +29,7 @@ public sealed class TokenBucketLimiter
         var elapsed = (now - _lastTicks) / (double)Stopwatch.Frequency;
         if (elapsed > 0)
         {
-            _tokens = Math.Min(_burstBytes, _tokens + (elapsed * _bytesPerSecond));
+            _tokens = Math.Min(_burstBytes, _tokens + elapsed * _bytesPerSecond);
             _lastTicks = now;
         }
     }

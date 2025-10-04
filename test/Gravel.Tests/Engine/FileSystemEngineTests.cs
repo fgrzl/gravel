@@ -1,6 +1,6 @@
-using System;
 using System.IO;
 using System.Threading.Tasks;
+using Gravel.TestHelpers;
 using Xunit;
 
 namespace Gravel.Engine;
@@ -11,9 +11,8 @@ public sealed class FileSystemEngineTests : EngineTestsBase, IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        _temp = Path.Combine(Path.GetTempPath(), "gravel-test-db-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_temp);
-
+        var td = new TempDirectory("gravel-test-db-");
+        _temp = td.Path;
 
         Engine = await GravelFactory.CreateFileSystemAsync(_temp);
     }
