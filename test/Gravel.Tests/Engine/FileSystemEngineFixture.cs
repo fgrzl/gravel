@@ -9,13 +9,13 @@ public sealed class FileSystemEngineTests : EngineTestsBase, IAsyncLifetime
 {
     string _temp = string.Empty;
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
         _temp = Path.Combine(Path.GetTempPath(), "gravel-test-db-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_temp);
 
 
-        return GravelFactory.CreateFileSystemAsync(_temp);
+        Engine = await GravelFactory.CreateFileSystemAsync(_temp);
     }
 
     public async Task DisposeAsync()
@@ -34,9 +34,9 @@ public sealed class FileSystemEngineTests : EngineTestsBase, IAsyncLifetime
 
 public sealed class InMemoryEngineTests : EngineTestsBase, IAsyncLifetime
 {
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
-        return GravelFactory.CreateInMemoryAsync();
+        Engine = await GravelFactory.CreateInMemoryAsync();
     }
 
     public async Task DisposeAsync()

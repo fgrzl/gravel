@@ -30,11 +30,11 @@ public static class Sequence
                         return ((ulong)nextSec << 32) | 0u;
                 }
 
-            return ((ulong)high << 32) | low + 1;
+            return ((ulong)high << 32) | (low + 1);
         }
 
         // high > nowSec (current is in the future relative to system clock):
         // increment counter to preserve monotonicity.
-        return ((ulong)high << 32) | low + 1;
+        return ((ulong)high << 32) | (low + 1);
     }
 }
