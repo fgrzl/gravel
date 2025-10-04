@@ -34,6 +34,7 @@ sealed class Levels(int levelCount)
             var outer = new List<IReadOnlyList<SstFile>>(_levels.Count);
             foreach (var l in _levels)
                 outer.Add(l.ToList().AsReadOnly()); // deep copy + readonly wrapper
+
             return outer.AsReadOnly();
         }
     }

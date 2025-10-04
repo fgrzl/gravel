@@ -123,7 +123,9 @@ public sealed class FileSstReader : ISstReader
                 if (cmp == 0)
                 {
                     // Apply range tombstone masking within this file
-                    if (IsMaskedByRange(key.Span, e.Sequence)) return null;
+                    if (IsMaskedByRange(key.Span, e.Sequence))
+                        return null;
+
                     return e;
                 }
 
@@ -132,7 +134,9 @@ public sealed class FileSstReader : ISstReader
         }
 
         // No exact entry; still could be masked by a range tombstone in this SST
-        if (IsMaskedByRange(key.Span, ulong.MaxValue)) return DbEntry.DeleteKey(key, ulong.MaxValue);
+        if (IsMaskedByRange(key.Span, ulong.MaxValue))
+            return DbEntry.DeleteKey(key, ulong.MaxValue);
+
         return null;
     }
 
