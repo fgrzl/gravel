@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Engine;
+using Gravel.TestHelpers;
 using Xunit;
 
 namespace Gravel.Internals.Compaction;

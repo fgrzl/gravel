@@ -10,6 +10,7 @@ using Gravel.Abstractions;
 using Gravel.Compression;
 using Gravel.Engine;
 using Gravel.Storage.FileSystem.Sst;
+using Gravel.TestHelpers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
