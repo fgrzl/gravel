@@ -1,6 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.IO.MemoryMappedFiles;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Sst;
 using Gravel.Compression;
@@ -24,19 +25,27 @@ public sealed class FileSstReader : ISstReader
 
     // Range tombstones loaded from metaindex block
     readonly List<(byte[] Start, byte[] End, ulong Seq)> _rangeDeletes = [];
-    readonly FileStream _stream;
+    readonly MemoryMappedFile _mmf;
+    readonly MemoryMappedViewStream _stream;
 
     public FileSstReader(string path, ICompressorFactory compressorFactory, ILogger<FileSstReader>? logger = null)
     {
         _path = path;
         _logger = logger ?? NullLogger<FileSstReader>.Instance;
         _compressorFactory = compressorFactory ?? throw new ArgumentNullException(nameof(compressorFactory));
-        _stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096,
-            FileOptions.Asynchronous | FileOptions.RandomAccess);
 
-        // read footer
+        // create memory-mapped view for the SST file (read-only)
+        var fi = new FileInfo(path);
+        var length = fi.Length;
+        if (length == 0) throw new InvalidDataException("File is empty");
+        _mmf = MemoryMappedFile.CreateFromFile(path, FileMode.Open, null, length, MemoryMappedFileAccess.Read);
+        _stream = _mmf.CreateViewStream(0, length, MemoryMappedFileAccess.Read);
+
+        // read footer (48 bytes at end of file)
         Span<byte> footer = stackalloc byte[48];
-        _stream.Seek(-48, SeekOrigin.End);
+        if (length < 48) throw new InvalidDataException("File too small to be a Rocks/Pebble SST");
+        var footerPos = length - 48;
+        _stream.Seek(footerPos, SeekOrigin.Begin);
         _stream.ReadExactly(footer);
 
         var magic = BinaryPrimitives.ReadUInt64LittleEndian(footer.Slice(40, 8));
@@ -123,9 +132,7 @@ public sealed class FileSstReader : ISstReader
                 if (cmp == 0)
                 {
                     // Apply range tombstone masking within this file
-                    if (IsMaskedByRange(key.Span, e.Sequence))
-                        return null;
-
+                    if (IsMaskedByRange(key.Span, e.Sequence)) return null;
                     return e;
                 }
 
@@ -134,9 +141,7 @@ public sealed class FileSstReader : ISstReader
         }
 
         // No exact entry; still could be masked by a range tombstone in this SST
-        if (IsMaskedByRange(key.Span, ulong.MaxValue))
-            return DbEntry.DeleteKey(key, ulong.MaxValue);
-
+        if (IsMaskedByRange(key.Span, ulong.MaxValue)) return DbEntry.DeleteKey(key, ulong.MaxValue);
         return null;
     }
 
@@ -165,6 +170,7 @@ public sealed class FileSstReader : ISstReader
     public void Dispose()
     {
         _stream.Dispose();
+        _mmf.Dispose();
     }
 
     static BlockHandle DecodeBlockHandle(ReadOnlySpan<byte> span)
