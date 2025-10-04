@@ -32,7 +32,8 @@ public sealed class FileWalReader(string directory, ILogger? logger = null) : IW
                 "WAL.ReplayFile", ActivityKind.Internal,
                 new KeyValuePair<string, object?>("wal.file", file));
 
-            await using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024,
+            // Use FileShare.ReadWrite to allow replay while a writer holds the segment open for write.
+            await using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 64 * 1024,
                 FileOptions.Asynchronous | FileOptions.SequentialScan);
             using var br = new BinaryReader(fs);
             var localReplayed = 0;

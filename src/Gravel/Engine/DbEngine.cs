@@ -391,7 +391,9 @@ class DbEngine : IDbEngine
 
         while (sources.Count > 0)
         {
-            ct.ThrowIfCancellationRequested();
+            if (ct.IsCancellationRequested)
+                yield break; // end enumeration gracefully on cancellation
+
             sources.Sort(cmp);
             var currentKey = sources[0].Key;
 
