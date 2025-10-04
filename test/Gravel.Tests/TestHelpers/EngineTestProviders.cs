@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Gravel.Compression;
-using Gravel.Engine.Compaction;
 using Gravel.Storage.FileSystem.Sst;
 using Gravel.Storage.FileSystem.Wal;
 using Gravel.Storage.InMemory.Sst;

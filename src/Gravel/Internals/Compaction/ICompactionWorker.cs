@@ -1,4 +1,4 @@
-namespace Gravel.Engine.Compaction;
+namespace Gravel.Internals.Compaction;
 
 /// <summary>
 ///     Abstraction over a compaction worker so different implementations can be swapped in.

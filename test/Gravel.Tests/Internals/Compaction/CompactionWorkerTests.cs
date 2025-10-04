@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Xunit;
 
-namespace Gravel.Engine.Compaction;
+namespace Gravel.Internals.Compaction;
 
 public class CompactionWorkerTests
 {

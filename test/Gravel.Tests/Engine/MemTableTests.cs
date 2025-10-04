@@ -1,14 +1,22 @@
 using System;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using Gravel.Abstractions;
+using Gravel.Internals;
 using Xunit;
 
 namespace Gravel.Engine;
 
 public class MemTableTests
 {
+    static ReadOnlyMemory<byte> B(string s)
+    {
+        return Encoding.UTF8.GetBytes(s);
+    }
+
     [Fact]
     public void should_be_empty_given_new_memtable_when_created()
     {
@@ -159,5 +167,123 @@ public class MemTableTests
         }
 
         mt.Count.Should().Be(10); // tombstones counted as entries
+    }
+
+    // Consolidated from MemTableRangeIndexTests
+    [Fact]
+    public void should_return_newest_covering_range_sequence()
+    {
+        var mt = new MemTable();
+        // Two overlapping ranges with different sequences
+        mt.PutRangeTombstone(B("a").Span, B("m").Span, 10UL);
+        mt.PutRangeTombstone(B("f").Span, B("z").Span, 20UL);
+
+        mt.TryGetCoveringRange(B("f").Span, out var s).Should().BeTrue();
+        s.Should().Be(20UL);
+
+        mt.TryGetCoveringRange(B("b").Span, out var s2).Should().BeTrue();
+        s2.Should().Be(10UL);
+
+        mt.TryGetCoveringRange(B("z").Span, out var s3).Should().BeFalse(); // end exclusive
+    }
+
+    [Fact]
+    public void should_be_false_when_no_ranges()
+    {
+        var mt = new MemTable();
+        mt.TryGetCoveringRange(B("k").Span, out var s).Should().BeFalse();
+        s.Should().Be(0UL);
+    }
+
+    [Fact]
+    public void should_update_index_when_duplicate_start_with_higher_seq()
+    {
+        var mt = new MemTable();
+        mt.PutRangeTombstone(B("a").Span, B("d").Span, 1UL);
+        mt.PutRangeTombstone(B("a").Span, B("c").Span, 5UL);
+
+        mt.TryGetCoveringRange(B("b").Span, out var s).Should().BeTrue();
+        s.Should().Be(5UL);
+    }
+
+    // Consolidated from MemTableConcurrencyTests
+    [Fact]
+    public async Task should_support_safe_scan_under_concurrent_puts_and_deletes()
+    {
+        var mt = new MemTable();
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+
+        // Writer task: mutate memtable
+        var writer = Task.Run(async () =>
+        {
+            var i = 0;
+            while (!cts.IsCancellationRequested)
+            {
+                var k = B("k" + (i % 50));
+                var v = B("v" + i);
+                if (i % 10 == 0)
+                    mt.PutDeleteTombstone(k.Span, (ulong)i);
+                else if (i % 15 == 0)
+                    mt.PutRangeTombstone(B("a").Span, B("z").Span, (ulong)i);
+                else
+                    mt.Put(k.Span, v.Span, (ulong)i);
+                i++;
+                await Task.Yield();
+            }
+        }, cts.Token);
+
+        // Reader loop: repeatedly scan; should never throw
+        var scans = 0;
+        var lastNonEmpty = false;
+        while (scans < 50)
+        {
+            var list = mt.Scan().ToList();
+            // basic sanity: keys must be non-decreasing
+            for (var i = 1; i < list.Count; i++)
+                ByteComparer.Compare(list[i - 1].Key.Span, list[i].Key.Span).Should().BeLessOrEqualTo(0);
+            lastNonEmpty = lastNonEmpty || list.Count > 0;
+            scans++;
+            await Task.Yield();
+        }
+
+        cts.Cancel();
+        await Task.WhenAny(writer, Task.Delay(100));
+
+        lastNonEmpty.Should().BeTrue();
+    }
+
+
+    [Fact]
+    public void should_remove_ranges_below_min_sequence_when_compact_by_sequence()
+    {
+        var mt = new MemTable();
+        mt.PutRangeTombstone(B("a").Span, B("b").Span, 1UL);
+        mt.PutRangeTombstone(B("c").Span, B("d").Span, 2UL);
+        mt.PutRangeTombstone(B("e").Span, B("f").Span, 3UL);
+
+        var removed = mt.CompactRangesBySequence(3UL);
+        removed.Should().Be(2);
+
+        mt.TryGetCoveringRange(B("a").Span, out var s1).Should().BeFalse();
+        mt.TryGetCoveringRange(B("c").Span, out var s2).Should().BeFalse();
+        mt.TryGetCoveringRange(B("e").Span, out var s3).Should().BeTrue();
+        s3.Should().Be(3UL);
+    }
+
+    [Fact]
+    public void should_remove_ranges_matching_predicate_when_remove_where()
+    {
+        var mt = new MemTable();
+        mt.PutRangeTombstone(B("a").Span, B("b").Span, 10UL);
+        mt.PutRangeTombstone(B("c").Span, B("d").Span, 20UL);
+        mt.PutRangeTombstone(B("e").Span, B("f").Span, 30UL);
+
+        // remove seq < 25, and specifically remove the 'e' range
+        var removed = mt.RemoveRangesWhere((s, e, seq) => seq < 25UL || s[0] == (byte)'e');
+        // two removed by seq (<25) and one by key ('e') => 3
+        removed.Should().Be(3);
+
+        mt.TryGetCoveringRange(B("c").Span, out var s1).Should().BeFalse();
+        mt.TryGetCoveringRange(B("e").Span, out var s2).Should().BeFalse();
     }
 }

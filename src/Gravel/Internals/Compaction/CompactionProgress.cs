@@ -1,4 +1,4 @@
-﻿namespace Gravel.Engine.Compaction;
+﻿namespace Gravel.Internals.Compaction;
 
 /// <summary>
 ///     Simple progress record for compaction tasks.

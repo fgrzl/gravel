@@ -8,11 +8,12 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Compression;
+using Gravel.Engine;
 using Gravel.Storage.FileSystem.Sst;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Gravel.Engine.Compaction;
+namespace Gravel.Internals.Compaction;
 
 public class CompactorRangeTests : IAsyncLifetime
 {

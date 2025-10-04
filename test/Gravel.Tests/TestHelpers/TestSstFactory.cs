@@ -5,7 +5,7 @@ using System.Linq;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Sst;
 
-namespace Gravel.Engine;
+namespace Gravel.TestHelpers;
 
 // Test-only SST factory that serves pre-registered readers per (basePath, level)
 sealed class TestSstFactory : ISstFactory

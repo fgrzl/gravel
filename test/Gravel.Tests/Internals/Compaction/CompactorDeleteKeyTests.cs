@@ -6,9 +6,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Gravel.Abstractions;
+using Gravel.Engine;
+using Gravel.TestHelpers;
 using Xunit;
 
-namespace Gravel.Engine.Compaction;
+namespace Gravel.Internals.Compaction;
 
 public class CompactorDeleteKeyTests
 {

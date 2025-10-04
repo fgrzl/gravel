@@ -5,10 +5,27 @@ namespace Gravel.TestHelpers;
 
 sealed class SimpleOptionsMonitor<T> : IOptionsMonitor<T> where T : class
 {
-    readonly T _value;
-    public SimpleOptionsMonitor(T value) => _value = value;
-    public T CurrentValue => _value;
-    public T Get(string? name) => _value;
-    public IDisposable OnChange(Action<T, string> listener) => new DummyDisposable();
-    sealed class DummyDisposable : IDisposable { public void Dispose() { } }
+    public SimpleOptionsMonitor(T value)
+    {
+        CurrentValue = value;
+    }
+
+    public T CurrentValue { get; }
+
+    public T Get(string? name)
+    {
+        return CurrentValue;
+    }
+
+    public IDisposable OnChange(Action<T, string> listener)
+    {
+        return new DummyDisposable();
+    }
+
+    sealed class DummyDisposable : IDisposable
+    {
+        public void Dispose()
+        {
+        }
+    }
 }

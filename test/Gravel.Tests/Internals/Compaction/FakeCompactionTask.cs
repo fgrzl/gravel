@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Gravel.Engine.Compaction;
+namespace Gravel.Internals.Compaction;
 
 // Simple in-memory fake compaction task for tests
 class FakeCompactionTask : ICompactionTask

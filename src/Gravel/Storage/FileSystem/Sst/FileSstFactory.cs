@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 namespace Gravel.Storage.FileSystem.Sst;
 
 public sealed class FileSstFactory(
-    IOptionsMonitor<FileSstOptions> options,
+    IOptions<FileSstOptions> options,
     ILoggerFactory loggerFactory,
     ICompressorFactory compressorFactory) : ISstFactory
 {
@@ -22,8 +22,8 @@ public sealed class FileSstFactory(
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
-        var bufferSize = options.CurrentValue.BufferSize;
-        var blockSize = options.CurrentValue.BlockSize;
+        var bufferSize = options.Value.BufferSize;
+        var blockSize = options.Value.BlockSize;
         var compressor = compressorFactory.Get(CompressionKind.Snappy);
         var logger = loggerFactory.CreateLogger<FileSstWriter>();
 

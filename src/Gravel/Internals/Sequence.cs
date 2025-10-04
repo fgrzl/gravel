@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-
 namespace Gravel.Internals;
 
 public static class Sequence
@@ -16,15 +13,12 @@ public static class Sequence
         var nowSec = (uint)(nowMillis / 1000);
 
         if (high < nowSec)
-        {
             // Clock has advanced beyond current high-second; start counter at 0.
             return ((ulong)nowSec << 32) | 0u;
-        }
 
         if (high == nowSec)
         {
             if (low == uint.MaxValue)
-            {
                 // Counter will wrap; wait until the second advances.
                 // Poll until Timestamp advances to next second.
                 while (true)
@@ -35,13 +29,12 @@ public static class Sequence
                     if (nextSec > high)
                         return ((ulong)nextSec << 32) | 0u;
                 }
-            }
 
-            return ((ulong)high << 32) | (uint)(low + 1);
+            return ((ulong)high << 32) | low + 1;
         }
 
         // high > nowSec (current is in the future relative to system clock):
         // increment counter to preserve monotonicity.
-        return ((ulong)high << 32) | (uint)(low + 1);
+        return ((ulong)high << 32) | low + 1;
     }
 }

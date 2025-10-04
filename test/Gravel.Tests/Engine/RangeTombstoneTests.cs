@@ -9,16 +9,12 @@ using Gravel.Compression;
 using Gravel.Storage.FileSystem.Sst;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using static Gravel.TestHelpers.TestBytes;
 
 namespace Gravel.Engine;
 
 public class RangeTombstoneTests
 {
-    static ReadOnlyMemory<byte> B(string s)
-    {
-        return Encoding.UTF8.GetBytes(s);
-    }
-
     static async IAsyncEnumerable<DbEntry> Entries(params DbEntry[] items)
     {
         foreach (var e in items)

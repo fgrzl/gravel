@@ -1,7 +1,7 @@
 ﻿using System.Buffers;
 using System.Threading.Channels;
 
-namespace Gravel.Engine.Compaction;
+namespace Gravel.Internals.Compaction;
 
 /// <summary>
 ///     Background compaction worker. Queues tasks, enforces concurrency and throttling,

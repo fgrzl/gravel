@@ -1,11 +1,12 @@
 using System.Diagnostics;
 using Gravel.Abstractions.Storage.Sst;
+using Gravel.Engine;
 using Gravel.Logging;
 using Gravel.Telemetry;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Gravel.Engine.Compaction;
+namespace Gravel.Internals.Compaction;
 
 /// <summary>
 ///     Compaction task that merges a set of SST files into a single output SST.

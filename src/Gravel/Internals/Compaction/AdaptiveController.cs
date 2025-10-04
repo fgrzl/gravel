@@ -1,4 +1,4 @@
-﻿namespace Gravel.Engine.Compaction;
+﻿namespace Gravel.Internals.Compaction;
 
 /// <summary>
 ///     Very small adaptive controller that can be used to adjust compaction rate based on memory pressure.

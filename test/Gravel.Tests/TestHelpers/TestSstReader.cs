@@ -8,11 +8,15 @@ using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Sst;
 using Gravel.Internals;
 
-namespace Gravel.Engine;
+namespace Gravel.TestHelpers;
 
-sealed class StubSstReader(IEnumerable<DbEntry> entries) : ISstReader
+sealed class TestSstReader(IEnumerable<DbEntry> entries) : ISstReader
 {
-    readonly List<DbEntry> _entries = [.. entries];
+    readonly List<DbEntry> _entries =
+        [.. entries.OrderBy(e => e.Key.Span.ToArray(), Comparer<byte[]>.Create(ByteComparer.Compare))];
+
+    readonly List<(ReadOnlyMemory<byte> Start, ReadOnlyMemory<byte> End, ulong Seq)> _ranges =
+        [.. entries.Where(e => e.Kind == DbEntryKind.DeleteRange).Select(e => (e.Key, e.Value, e.Sequence))];
 
     public ValueTask<DbEntry?> GetAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default)
     {
@@ -39,7 +43,7 @@ sealed class StubSstReader(IEnumerable<DbEntry> entries) : ISstReader
 
     public IReadOnlyList<(ReadOnlyMemory<byte> Start, ReadOnlyMemory<byte> End, ulong Seq)> GetRangeDeletes()
     {
-        return [];
+        return _ranges;
     }
 
     public void Dispose()

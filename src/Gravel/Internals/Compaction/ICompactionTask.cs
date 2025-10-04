@@ -1,4 +1,4 @@
-﻿namespace Gravel.Engine.Compaction;
+﻿namespace Gravel.Internals.Compaction;
 
 /// <summary>
 ///     Abstraction for a single streaming compaction task. Implementations should perform

@@ -1,8 +1,8 @@
 using System.Runtime.CompilerServices;
 using Gravel.Abstractions;
-using Gravel.Internals;
+using Gravel.Engine;
 
-namespace Gravel.Engine.Compaction;
+namespace Gravel.Internals.Compaction;
 
 public static class Compactor
 {

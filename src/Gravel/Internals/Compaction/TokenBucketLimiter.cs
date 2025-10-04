@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 
-namespace Gravel.Engine.Compaction;
+namespace Gravel.Internals.Compaction;
 
 public sealed class TokenBucketLimiter
 {

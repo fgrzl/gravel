@@ -1,21 +1,17 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Gravel.Abstractions;
+using Gravel.TestHelpers;
 using Xunit;
+using static Gravel.TestHelpers.TestBytes;
 
 namespace Gravel.Engine;
 
 public class SstScanSourceStreamingTests
 {
-    static ReadOnlyMemory<byte> B(string s)
-    {
-        return Encoding.UTF8.GetBytes(s);
-    }
-
     [Fact]
     public async Task should_stream_points_and_ranges_in_order_without_materializing_all()
     {
