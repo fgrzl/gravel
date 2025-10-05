@@ -13,7 +13,7 @@ sealed class SstManager(ISstFactory sstFactory, Levels levels, string sstDir, IL
 
     public async Task LoadExistingAsync(CancellationToken ct = default)
     {
-        for (var l = 0;; l++)
+        for (var l = 0; ; l++)
         {
             if (l >= _levels.LevelCount) break;
             var files = _sstFactory.EnumerateLevelFiles(_sstDir, l);
@@ -40,7 +40,7 @@ sealed class SstManager(ISstFactory sstFactory, Levels levels, string sstDir, IL
 
         await using (var w = await _sstFactory.CreateWriterAsync(path, mt.Count, ct).ConfigureAwait(false))
         {
-            await w.WriteAsync(DbEngine.EnumerateMemTableEntriesAsync(mt, ct), ct).ConfigureAwait(false);
+            await w.WriteAsync(mt.EnumerateEntriesAsync(ct), ct).ConfigureAwait(false);
         }
 
         var r = await _sstFactory.CreateReaderAsync(path, ct).ConfigureAwait(false);

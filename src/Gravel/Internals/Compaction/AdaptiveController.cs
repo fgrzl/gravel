@@ -1,7 +1,7 @@
 ﻿namespace Gravel.Internals.Compaction;
 
 /// <summary>
-///     Very small adaptive controller that can be used to adjust compaction rate based on memory pressure.
+///     Adaptive controller for compaction rate. Adjusts compaction throughput based on memory pressure.
 ///     Hosts can implement more sophisticated logic and feed signals directly into CompactionWorker.UpdateBytesPerSecond.
 /// </summary>
 public sealed class AdaptiveController : IDisposable
@@ -12,6 +12,13 @@ public sealed class AdaptiveController : IDisposable
     readonly double _minRate;
     readonly CompactionWorker _worker;
 
+    /// <summary>
+    ///     Initializes a new instance of <see cref="AdaptiveController"/>.
+    /// </summary>
+    /// <param name="worker">The compaction worker to control.</param>
+    /// <param name="minRate">Minimum bytes per second.</param>
+    /// <param name="maxRate">Maximum bytes per second.</param>
+    /// <param name="interval">Optional interval for rate adjustment.</param>
     public AdaptiveController(CompactionWorker worker, double minRate, double maxRate, TimeSpan? interval = null)
     {
         ArgumentNullException.ThrowIfNull(worker, nameof(worker));
@@ -22,12 +29,18 @@ public sealed class AdaptiveController : IDisposable
         _ = Task.Run(RunAsync);
     }
 
+    /// <summary>
+    ///     Disposes the controller and cancels background rate adjustment.
+    /// </summary>
     public void Dispose()
     {
         _cts.Cancel();
         _cts.Dispose();
     }
 
+    /// <summary>
+    ///     Background loop that periodically adjusts compaction rate based on GC memory usage.
+    /// </summary>
     async Task RunAsync()
     {
         try

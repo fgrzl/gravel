@@ -1,4 +1,5 @@
-﻿using Gravel.Abstractions;
+﻿using System.Runtime.CompilerServices;
+using Gravel.Abstractions;
 using Gravel.Internals;
 
 namespace Gravel.Engine;
@@ -6,30 +7,49 @@ namespace Gravel.Engine;
 /// <summary>
 ///     In-memory MemTable backed by a skip list.
 ///     Stores key/value pairs with sequence numbers for versioning.
-///     Uses an EntryPool and ArrayPool
-///     to minimize allocations.
+///     Uses an EntryPool and ArrayPool to minimize allocations.
 ///     Thread-safety: all public methods are synchronized with a lock.
 /// </summary>
 public sealed class MemTable
 {
+    /// <summary>
+    ///     Maximum level for skip list nodes.
+    /// </summary>
     const int MaxLevel = 16;
-    readonly Node _head = new(null!, MaxLevel); // dummy head
+    /// <summary>
+    ///     Dummy head node for skip list.
+    /// </summary>
+    readonly Node _head = new(null!, MaxLevel);
+    /// <summary>
+    ///     Pool for entry objects to reduce allocations.
+    /// </summary>
     readonly EntryPool _pool = new();
-
-    // Targeted range index for fast coverage checks
+    /// <summary>
+    ///     Range index for fast coverage checks.
+    /// </summary>
     readonly RangeIndex _rangeIndex = new();
-
+    /// <summary>
+    ///     Synchronization object for thread safety.
+    /// </summary>
     readonly object _sync = new();
-
-    // reuse a single update array (protected by same lock) to avoid per-op allocations
+    /// <summary>
+    ///     Update array reused for skip list insertions.
+    /// </summary>
     readonly Node?[] _update = new Node?[MaxLevel];
     int _count;
     int _level = 1;
-
-    // Diagnostics: track how often Scan() is enumerated
+    /// <summary>
+    ///     Tracks how often Scan() is enumerated.
+    /// </summary>
     long _scanEnumerations;
+    /// <summary>
+    ///     Gets the number of times Scan() has been enumerated.
+    /// </summary>
     internal long ScanEnumerations => Interlocked.Read(ref _scanEnumerations);
 
+    /// <summary>
+    ///     Gets the number of entries in the memtable.
+    /// </summary>
     public int Count
     {
         get
@@ -41,21 +61,45 @@ public sealed class MemTable
         }
     }
 
+    /// <summary>
+    ///     Inserts or updates a key-value pair in the memtable.
+    /// </summary>
+    /// <param name="key">The key to put.</param>
+    /// <param name="value">The value to associate.</param>
+    /// <param name="seq">The sequence number.</param>
     public void Put(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value, ulong seq)
     {
         Upsert(key, value, seq, DbEntryKind.Put);
     }
 
+    /// <summary>
+    ///     Inserts a range tombstone (delete range) into the memtable.
+    /// </summary>
+    /// <param name="start">The start key (inclusive).</param>
+    /// <param name="end">The end key (exclusive).</param>
+    /// <param name="seq">The sequence number.</param>
     public void PutRangeTombstone(ReadOnlySpan<byte> start, ReadOnlySpan<byte> end, ulong seq)
     {
         Upsert(start, end, seq, DbEntryKind.DeleteRange);
     }
 
+    /// <summary>
+    ///     Inserts a delete tombstone for a single key.
+    /// </summary>
+    /// <param name="key">The key to delete.</param>
+    /// <param name="seq">The sequence number.</param>
     public void PutDeleteTombstone(ReadOnlySpan<byte> key, ulong seq)
     {
         Upsert(key, ReadOnlySpan<byte>.Empty, seq, DbEntryKind.DeleteKey);
     }
 
+    /// <summary>
+    ///     Internal upsert logic for all entry kinds.
+    /// </summary>
+    /// <param name="key">The key.</param>
+    /// <param name="value">The value or range-end.</param>
+    /// <param name="seq">The sequence number.</param>
+    /// <param name="kind">The entry kind.</param>
     void Upsert(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value, ulong seq, DbEntryKind kind)
     {
         var k = key.ToArray();
@@ -131,6 +175,14 @@ public sealed class MemTable
         }
     }
 
+    /// <summary>
+    ///     Tries to get the value, sequence, and kind for a key.
+    /// </summary>
+    /// <param name="key">The key to look up.</param>
+    /// <param name="value">The value if found.</param>
+    /// <param name="seq">The sequence number if found.</param>
+    /// <param name="kind">The entry kind if found.</param>
+    /// <returns>True if found, otherwise false.</returns>
     public bool TryGet(ReadOnlySpan<byte> key, out ReadOnlyMemory<byte>? value, out ulong seq, out DbEntryKind kind)
     {
         lock (_sync)
@@ -167,6 +219,12 @@ public sealed class MemTable
         }
     }
 
+    /// <summary>
+    ///     Tries to get the covering range tombstone sequence for a key.
+    /// </summary>
+    /// <param name="key">The key to check.</param>
+    /// <param name="coveringSeq">The covering sequence if found.</param>
+    /// <returns>True if a covering range exists, otherwise false.</returns>
     public bool TryGetCoveringRange(ReadOnlySpan<byte> key, out ulong coveringSeq)
     {
         lock (_sync)
@@ -175,7 +233,11 @@ public sealed class MemTable
         }
     }
 
-    // Internal maintenance hooks for future TTL/epoch-based pruning
+    /// <summary>
+    ///     Compacts range tombstones by removing those below the minimum live sequence.
+    /// </summary>
+    /// <param name="minLiveSeq">The minimum live sequence.</param>
+    /// <returns>The number of ranges removed.</returns>
     internal int CompactRangesBySequence(ulong minLiveSeq)
     {
         lock (_sync)
@@ -184,6 +246,11 @@ public sealed class MemTable
         }
     }
 
+    /// <summary>
+    ///     Removes range tombstones matching a predicate.
+    /// </summary>
+    /// <param name="predicate">The predicate to match.</param>
+    /// <returns>The number of ranges removed.</returns>
     internal int RemoveRangesWhere(Func<byte[], byte[], ulong, bool> predicate)
     {
         lock (_sync)
@@ -192,6 +259,11 @@ public sealed class MemTable
         }
     }
 
+    /// <summary>
+    ///     Deletes a key from the memtable.
+    /// </summary>
+    /// <param name="key">The key to delete.</param>
+    /// <returns>True if the key was deleted, otherwise false.</returns>
     public bool Delete(ReadOnlySpan<byte> key)
     {
         lock (_sync)
@@ -227,6 +299,12 @@ public sealed class MemTable
         }
     }
 
+    /// <summary>
+    ///     Scans the memtable for entries in the specified range.
+    /// </summary>
+    /// <param name="start">Optional start key (inclusive).</param>
+    /// <param name="end">Optional end key (exclusive).</param>
+    /// <returns>An enumerable of key/value/sequence/kind tuples.</returns>
     public IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value, ulong Seq, DbEntryKind Kind)> Scan(
         ReadOnlyMemory<byte>? start = null,
         ReadOnlyMemory<byte>? end = null)
@@ -270,6 +348,10 @@ public sealed class MemTable
             yield return (k, v, s, kind);
     }
 
+    /// <summary>
+    ///     Generates a random level for skip list insertion.
+    /// </summary>
+    /// <returns>The random level.</returns>
     static int RandomLevel()
     {
         var lvl = 1;
@@ -278,6 +360,9 @@ public sealed class MemTable
         return lvl;
     }
 
+    /// <summary>
+    ///     Skip list node for MemTable entries.
+    /// </summary>
     sealed class Node(EntryPool.Entry entry, int level)
     {
         public readonly EntryPool.Entry Entry = entry;
@@ -285,10 +370,19 @@ public sealed class MemTable
         public readonly int Level = level;
     }
 
+    /// <summary>
+    ///     Index for range tombstones, supporting fast coverage checks and compaction.
+    /// </summary>
     sealed class RangeIndex
     {
         readonly List<(byte[] Start, byte[] End, ulong Seq)> _ranges = [];
 
+        /// <summary>
+        ///     Adds a range tombstone to the index.
+        /// </summary>
+        /// <param name="start">The start key.</param>
+        /// <param name="end">The end key.</param>
+        /// <param name="seq">The sequence number.</param>
         public void Add(byte[] start, byte[] end, ulong seq)
         {
             // insert by Start asc then Seq desc to keep local clusters
@@ -322,6 +416,12 @@ public sealed class MemTable
             _ranges.Insert(Math.Min(pos, _ranges.Count), (start, end, seq));
         }
 
+        /// <summary>
+        ///     Tries to get the covering sequence for a key.
+        /// </summary>
+        /// <param name="key">The key to check.</param>
+        /// <param name="coveringSeq">The covering sequence if found.</param>
+        /// <returns>True if a covering range exists, otherwise false.</returns>
         public bool TryGetCoveringSequence(ReadOnlySpan<byte> key, out ulong coveringSeq)
         {
             coveringSeq = 0;
@@ -360,11 +460,21 @@ public sealed class MemTable
             return coveringSeq > 0;
         }
 
+        /// <summary>
+        ///     Compacts the index by removing ranges below the minimum live sequence.
+        /// </summary>
+        /// <param name="minLiveSeq">The minimum live sequence.</param>
+        /// <returns>The number of ranges removed.</returns>
         public int CompactBySequence(ulong minLiveSeq)
         {
             return RemoveWhere((s, e, seq) => seq < minLiveSeq);
         }
 
+        /// <summary>
+        ///     Removes ranges matching a predicate.
+        /// </summary>
+        /// <param name="predicate">The predicate to match.</param>
+        /// <returns>The number of ranges removed.</returns>
         public int RemoveWhere(Func<byte[], byte[], ulong, bool> predicate)
         {
             var removed = 0;
@@ -379,6 +489,28 @@ public sealed class MemTable
             }
 
             return removed;
+        }
+    }
+
+    /// <summary>
+    ///     Asynchronously enumerates all entries in the memtable as <see cref="DbEntry"/>s.
+    /// </summary>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>An async enumerable of <see cref="DbEntry"/>s.</returns>
+    public async IAsyncEnumerable<DbEntry> EnumerateEntriesAsync([EnumeratorCancellation] CancellationToken ct)
+    {
+        foreach (var (k, v, seq, kind) in Scan())
+        {
+            ct.ThrowIfCancellationRequested();
+            var e = kind switch
+            {
+                DbEntryKind.Put => DbEntry.Put(k, v, seq),
+                DbEntryKind.DeleteKey => DbEntry.DeleteKey(k, seq),
+                DbEntryKind.DeleteRange => DbEntry.DeleteRange(k, v, seq),
+                _ => default
+            };
+            yield return e;
+            await Task.Yield();
         }
     }
 }

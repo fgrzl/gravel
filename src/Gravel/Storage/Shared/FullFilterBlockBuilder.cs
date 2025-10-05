@@ -1,17 +1,29 @@
 ﻿using System.Buffers.Binary;
 using Gravel.Internals.Filters;
 
-namespace Gravel.Abstractions.Storage.Sst;
+namespace Gravel.Storage.Shared;
 
-sealed class FullFilterBlockBuilder(int expectedEntries)
+/// <summary>
+/// Builds a full Bloom filter block for an SST file.
+/// </summary>
+/// <param name="expectedEntries">Expected number of entries to size the filter.</param>
+public sealed class FullFilterBlockBuilder(int expectedEntries)
 {
     readonly BloomFilter _bloom = BloomFilter.Create(expectedEntries);
 
+    /// <summary>
+    /// Adds a key to the Bloom filter.
+    /// </summary>
+    /// <param name="key">The user key bytes.</param>
     public void AddKey(ReadOnlySpan<byte> key)
     {
         _bloom.Add(key);
     }
 
+    /// <summary>
+    /// Finalizes the filter and returns its serialized representation.
+    /// </summary>
+    /// <returns>Serialized filter bytes: bits, hash function count, and bit array length followed by data.</returns>
     public byte[] Finish()
     {
         var bitsMem = _bloom.GetBits();

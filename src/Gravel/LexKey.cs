@@ -9,6 +9,16 @@ namespace Gravel;
 /// </summary>
 public readonly struct LexKey(byte[] bytes)
 {
+    /// <summary>
+    ///     Separator byte used for key encoding.
+    /// </summary>
+    public const byte Separator = 0x00;
+
+    /// <summary>
+    ///     End marker byte used for key encoding.
+    /// </summary>
+    public const byte EndMarker = 0xFF;
+
     readonly byte[] _bytes = bytes ?? [];
 
     /// <summary>
@@ -18,7 +28,7 @@ public readonly struct LexKey(byte[] bytes)
     /// <summary>
     ///     Gets a <see cref="LexKey"/> instance representing the last possible key.
     /// </summary>
-    public static readonly LexKey Last = Encode(LexKeyConstants.EndMarker);
+    public static readonly LexKey Last = Encode(EndMarker);
 
     /// <summary>
     ///     Gets the encoded bytes of the key.
@@ -73,7 +83,7 @@ public readonly struct LexKey(byte[] bytes)
             encoded.CopyTo(span[offset..]);
             offset += encoded.Length;
 
-            if (i < parts.Length - 1) span[offset++] = LexKeyConstants.Separator;
+            if (i < parts.Length - 1) span[offset++] = Separator;
         }
 
         return new LexKey(buffer[..offset].ToArray());
@@ -99,7 +109,7 @@ public readonly struct LexKey(byte[] bytes)
         var prefix = Encode(parts);
         var arr = new byte[prefix.Bytes.Length + 1];
         prefix.Bytes.Span.CopyTo(arr.AsSpan(0, prefix.Bytes.Length));
-        arr[^1] = LexKeyConstants.Separator;
+        arr[^1] = Separator;
         return new LexKey(arr);
     }
 
@@ -113,7 +123,7 @@ public readonly struct LexKey(byte[] bytes)
         var prefix = Encode(parts);
         var arr = new byte[prefix.Bytes.Length + 1];
         prefix.Bytes.Span.CopyTo(arr.AsSpan(0, prefix.Bytes.Length));
-        arr[^1] = LexKeyConstants.EndMarker;
+        arr[^1] = EndMarker;
         return new LexKey(arr);
     }
 
@@ -127,7 +137,7 @@ public readonly struct LexKey(byte[] bytes)
         switch (value)
         {
             case null:
-                return [LexKeyConstants.Separator];
+                return [Separator];
             case string s:
                 return Encoding.UTF8.GetBytes(s);
             case byte[] b:
@@ -208,42 +218,6 @@ public readonly struct LexKey(byte[] bytes)
     {
         Span<byte> buf = stackalloc byte[8];
         BinaryPrimitives.WriteUInt64BigEndian(buf, (ulong)v ^ 0x8000_0000_0000_0000UL);
-        return buf.ToArray();
-    }
-
-    /// <summary>
-    ///     Encodes a signed 16-bit integer to a canonical big-endian byte array.
-    /// </summary>
-    /// <param name="v">The value to encode.</param>
-    /// <returns>The encoded bytes.</returns>
-    static byte[] EncodeInt16(short v)
-    {
-        Span<byte> buf = stackalloc byte[2];
-        BinaryPrimitives.WriteUInt16BigEndian(buf, (ushort)((ushort)v ^ 0x8000));
-        return buf.ToArray();
-    }
-
-    /// <summary>
-    ///     Encodes an unsigned 16-bit integer to a big-endian byte array.
-    /// </summary>
-    /// <param name="v">The value to encode.</param>
-    /// <returns>The encoded bytes.</returns>
-    static byte[] EncodeUInt16(ushort v)
-    {
-        Span<byte> buf = stackalloc byte[2];
-        BinaryPrimitives.WriteUInt16BigEndian(buf, v);
-        return buf.ToArray();
-    }
-
-    /// <summary>
-    ///     Encodes an unsigned 32-bit integer to a big-endian byte array.
-    /// </summary>
-    /// <param name="v">The value to encode.</param>
-    /// <returns>The encoded bytes.</returns>
-    static byte[] EncodeUInt32(uint v)
-    {
-        Span<byte> buf = stackalloc byte[4];
-        BinaryPrimitives.WriteUInt32BigEndian(buf, v);
         return buf.ToArray();
     }
 

@@ -36,19 +36,9 @@ public sealed class GravelOptions : IOptions<GravelOptions>
     public int SstLevels { get; set; } = 7;
 
     /// <summary>
-    ///     Target size of the in-memory write buffer used by certain IO paths (bytes).
-    /// </summary>
-    public int WriteBufferSize { get; set; } = 4 * 1024 * 1024;
-
-    /// <summary>
     ///     When true, opens the database in read-only mode where possible. Some operations will be disabled.
     /// </summary>
     public bool ReadOnly { get; set; }
-
-    /// <summary>
-    ///     Maximum size of a WAL segment, in bytes, before rolling to a new WAL file.
-    /// </summary>
-    public long WalSegmentSize { get; set; } = 4 * 1024 * 1024;
 
     /// <summary>
     ///     If true, durability is ensured by flushing the WAL during transaction commit (group commit).
@@ -60,17 +50,6 @@ public sealed class GravelOptions : IOptions<GravelOptions>
     ///     Number of files in a level required to trigger a compaction (fan-in threshold).
     /// </summary>
     public int CompactionFanInThreshold { get; set; } = 4;
-
-    /// <summary>
-    ///     Maximum total input bytes to merge in a single compaction pass. Compaction is skipped
-    ///     for that pass if the selected files exceed this value.
-    /// </summary>
-    public long CompactionMaxMergeBytes { get; set; } = 16 * 1024 * 1024; // 16MB
-
-    /// <summary>
-    ///     Target sparse index interval when writing SSTs for streaming merges (approximate).
-    /// </summary>
-    public int SparseIndexInterval { get; set; } = 128;
 
     /// <summary>
     ///     Maximum number of concurrent compaction tasks to run.

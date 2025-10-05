@@ -10,6 +10,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Gravel.Storage.FileSystem.Wal;
 
+/// <summary>
+///     File-based implementation of <see cref="IWalWriter"/> that writes Write-Ahead Log (WAL)
+///     records to rolling segment files on disk for durability and recovery.
+/// </summary>
 public sealed class FileWalWriter : IWalWriter
 {
     readonly string _dir;
@@ -19,6 +23,12 @@ public sealed class FileWalWriter : IWalWriter
     ulong _currentSegmentId;
     FileStream _stream;
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="FileWalWriter"/> class.
+    /// </summary>
+    /// <param name="directory">Directory where WAL segment files are created.</param>
+    /// <param name="segmentSizeLimit">Maximum size in bytes of a WAL segment before rolling to a new one.</param>
+    /// <param name="logger">Optional logger instance.</param>
     public FileWalWriter(string directory, long segmentSizeLimit = 64 * 1024 * 1024, ILogger? logger = null)
     {
         _dir = directory;
@@ -30,9 +40,22 @@ public sealed class FileWalWriter : IWalWriter
         Log.WalOpenedWriter(_logger, _dir, _segmentSizeLimit);
     }
 
+    /// <summary>
+    ///     Sequence number of the last appended record.
+    /// </summary>
     public ulong LastSequence { get; private set; }
+
+    /// <summary>
+    ///     Current segment size in bytes.
+    /// </summary>
     public long CurrentSize { get; private set; }
 
+    /// <summary>
+    ///     Write a BEGIN record for the specified transaction.
+    /// </summary>
+    /// <param name="txnId">The transaction ID.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public ValueTask BeginTransactionAsync(ulong txnId, CancellationToken ct = default)
     {
         lock (_writeLock)
@@ -44,6 +67,13 @@ public sealed class FileWalWriter : IWalWriter
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    ///     Write a DATA record for the specified transaction.
+    /// </summary>
+    /// <param name="txnId">The transaction ID.</param>
+    /// <param name="entry">The database entry.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public ValueTask AppendAsync(ulong txnId, DbEntry entry, CancellationToken ct = default)
     {
         using var _ = TelemetryHelper.StartActivityScope(TelemetrySources.ActivitySource, _logger,
@@ -121,6 +151,12 @@ public sealed class FileWalWriter : IWalWriter
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    ///     Write a COMMIT record for the specified transaction.
+    /// </summary>
+    /// <param name="txnId">The transaction ID.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public ValueTask CommitTransactionAsync(ulong txnId, CancellationToken ct = default)
     {
         lock (_writeLock)
@@ -132,6 +168,12 @@ public sealed class FileWalWriter : IWalWriter
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    ///     Write a ROLLBACK record for the specified transaction.
+    /// </summary>
+    /// <param name="txnId">The transaction ID.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public ValueTask RollbackTransactionAsync(ulong txnId, CancellationToken ct = default)
     {
         lock (_writeLock)
@@ -143,6 +185,11 @@ public sealed class FileWalWriter : IWalWriter
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    ///     Ensure all pending writes are durable on disk.
+    /// </summary>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public ValueTask FlushAsync(CancellationToken ct = default)
     {
         lock (_writeLock)
@@ -153,6 +200,10 @@ public sealed class FileWalWriter : IWalWriter
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    ///     Asynchronously flushes pending WAL data and disposes the writer, releasing all resources.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous dispose operation.</returns>
     public async ValueTask DisposeAsync()
     {
         await FlushAsync();

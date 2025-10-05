@@ -5,10 +5,20 @@ using System.Net.Sockets;
 
 namespace Gravel.Internals;
 
+/// <summary>
+///     Provides static methods for obtaining timestamps, optionally using NTP servers for time synchronization.
+///     Handles system time fallback and initialization error reporting.
+/// </summary>
 public static class Timestamp
 {
+    /// <summary>
+    ///     Environment variable name for time server selection.
+    /// </summary>
     const string TimeServerEnv = "GRAVEL_TIME_SERVER";
 
+    /// <summary>
+    ///     Default NTP servers used for time synchronization.
+    /// </summary>
     static readonly string[] DefaultNtpServers =
     [
         "time.google.com",
@@ -21,6 +31,9 @@ public static class Timestamp
     static readonly Clock GlobalClock;
     static readonly Exception? InitError;
 
+    /// <summary>
+    ///     Static constructor initializes the global clock, using NTP or system time.
+    /// </summary>
     static Timestamp()
     {
         try
@@ -35,6 +48,11 @@ public static class Timestamp
         }
     }
 
+    /// <summary>
+    ///     Gets the current timestamp in milliseconds since Unix epoch.
+    ///     Uses NTP or system time depending on configuration and initialization.
+    /// </summary>
+    /// <returns>The current timestamp in milliseconds.</returns>
     public static long GetTimestamp()
     {
         // If the environment explicitly requests system time at call-time, prefer
@@ -56,16 +74,28 @@ public static class Timestamp
         return clock.StartMillis + clock.Stopwatch.ElapsedMilliseconds;
     }
 
+    /// <summary>
+    ///     Gets any error encountered during initialization (NTP/system time).
+    /// </summary>
+    /// <returns>The initialization error, if any.</returns>
     public static Exception? GetInitializationError()
     {
         return InitError;
     }
 
+    /// <summary>
+    ///     Gets the configured timeserver from environment variable.
+    /// </summary>
+    /// <returns>The timeserver name, or null if not set.</returns>
     public static string? GetTimeServer()
     {
         return Environment.GetEnvironmentVariable(TimeServerEnv);
     }
 
+    /// <summary>
+    ///     Gets the current time from NTP or system clock, depending on configuration.
+    /// </summary>
+    /// <returns>The current UTC time.</returns>
     static DateTime GetCurrentTime()
     {
         var server = GetTimeServer();
@@ -87,6 +117,12 @@ public static class Timestamp
         return DateTime.UtcNow;
     }
 
+    /// <summary>
+    ///     Attempts to get the current time from an NTP server.
+    /// </summary>
+    /// <param name="server">The NTP server to query.</param>
+    /// <param name="utc">The resulting UTC time if successful.</param>
+    /// <returns>True if successful, otherwise false.</returns>
     static bool TryGetNtpTime(string server, out DateTime utc)
     {
         try
@@ -131,9 +167,18 @@ public static class Timestamp
         }
     }
 
+    /// <summary>
+    ///     Represents a clock with a start time and a running stopwatch for elapsed time calculation.
+    /// </summary>
     sealed class Clock(DateTime start)
     {
+        /// <summary>
+        ///     The start time in milliseconds since Unix epoch.
+        /// </summary>
         public readonly long StartMillis = new DateTimeOffset(start).ToUnixTimeMilliseconds();
+        /// <summary>
+        ///     Stopwatch for measuring elapsed time since start.
+        /// </summary>
         public readonly Stopwatch Stopwatch = Stopwatch.StartNew();
     }
 }

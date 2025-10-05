@@ -1,11 +1,11 @@
 ﻿using Gravel.Internals;
 
-namespace Gravel.Abstractions.Storage.Sst;
+namespace Gravel.Storage.Shared;
 
 /// <summary>
 ///     Builds a simple block for SST storage, encoding key and handle pairs into a buffer.
 /// </summary>
-sealed class SimpleBlockBuilder
+public sealed class SimpleBlockBuilder
 {
     readonly MemoryStream _buf = new();
 
@@ -35,13 +35,5 @@ sealed class SimpleBlockBuilder
     public byte[] Finish()
     {
         return _buf.ToArray();
-    }
-
-    /// <summary>
-    ///     Resets the block builder, clearing the buffer.
-    /// </summary>
-    public void Reset()
-    {
-        _buf.SetLength(0);
     }
 }

@@ -27,6 +27,15 @@ public sealed class MergeFilesCompactionTask : ICompactionTask
 
     Task? _work;
 
+    /// <summary>
+    ///     Initializes a new instance of <see cref="MergeFilesCompactionTask"/>.
+    /// </summary>
+    /// <param name="inputs">The input SST files to merge.</param>
+    /// <param name="outPath">The output SST file path.</param>
+    /// <param name="sstFactory">The SST factory for creating readers/writers.</param>
+    /// <param name="expectedEntries">The expected number of entries in the output.</param>
+    /// <param name="onSuccess">Callback invoked on successful completion.</param>
+    /// <param name="logger">Optional logger for diagnostics.</param>
     public MergeFilesCompactionTask(
         List<SstFile> inputs, string outPath, ISstFactory sstFactory,
         int expectedEntries, Action<string, List<SstFile>> onSuccess, ILogger? logger = null)
@@ -53,10 +62,21 @@ public sealed class MergeFilesCompactionTask : ICompactionTask
         TotalBytesExpected = total;
     }
 
+    /// <summary>
+    ///     Gets the unique task ID for this compaction task.
+    /// </summary>
     public string TaskId { get; }
 
+    /// <summary>
+    ///     Gets the total bytes expected to be written by this compaction task.
+    /// </summary>
     public long TotalBytesExpected { get; }
 
+    /// <summary>
+    ///     Prepares resources and starts the compaction work in the background.
+    /// </summary>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task representing the preparation.</returns>
     public Task PrepareAsync(CancellationToken ct)
     {
         // Start compaction work in background; we will await it in CompleteAsync.
@@ -101,6 +121,13 @@ public sealed class MergeFilesCompactionTask : ICompactionTask
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    ///     Reads up to buffer.Length bytes from the task's input(s) into buffer.
+    ///     This implementation does not stream input; returns 0.
+    /// </summary>
+    /// <param name="buffer">The buffer to read into.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task with the number of bytes read (always 0).</returns>
     public Task<int> ReadNextInputAsync(Memory<byte> buffer, CancellationToken ct)
     {
         // No streaming-bytes integration: compaction runs in its own background task
@@ -108,12 +135,23 @@ public sealed class MergeFilesCompactionTask : ICompactionTask
         return Task.FromResult(0);
     }
 
+    /// <summary>
+    ///     Writes an output chunk. This implementation is a no-op; actual writes are performed by the SST writer.
+    /// </summary>
+    /// <param name="buffer">The buffer to write.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A completed task.</returns>
     public Task WriteOutputAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct)
     {
         // No-op for this simple task variant: actual writes are performed by the sst writer
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    ///     Awaits completion of the background compaction work and releases resources.
+    /// </summary>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task representing completion.</returns>
     public async Task CompleteAsync(CancellationToken ct)
     {
         if (_work != null) await _work.ConfigureAwait(false);

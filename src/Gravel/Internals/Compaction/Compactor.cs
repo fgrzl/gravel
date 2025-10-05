@@ -4,13 +4,29 @@ using Gravel.Engine;
 
 namespace Gravel.Internals.Compaction;
 
+/// <summary>
+///     Static helper for SST file compaction and merging logic.
+///     Provides methods for estimating merge output and merging multiple SST files with range tombstone support.
+/// </summary>
 public static class Compactor
 {
+    /// <summary>
+    ///     Estimates the number of merged entries for a set of SST files.
+    /// </summary>
+    /// <param name="files">The list of SST files to merge.</param>
+    /// <returns>The estimated merged entry count.</returns>
     public static int EstimateMergedCount(List<SstFile> files)
     {
         return files.Count * 1024;
     }
 
+    /// <summary>
+    ///     Merges multiple SST files asynchronously, yielding <see cref="DbEntry"/>s in sorted order.
+    ///     Handles point entries and range tombstones, and applies range masking logic.
+    /// </summary>
+    /// <param name="files">The list of SST files to merge.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>An async enumerable of merged <see cref="DbEntry"/>s.</returns>
     public static async IAsyncEnumerable<DbEntry> MergeLevelFilesAsync(
         List<SstFile> files,
         [EnumeratorCancellation] CancellationToken ct)
@@ -136,6 +152,13 @@ public static class Compactor
         }
     }
 
+    /// <summary>
+    ///     Inserts or updates a range tombstone in the active set, keeping the list sorted by start key.
+    /// </summary>
+    /// <param name="ranges">The list of active ranges.</param>
+    /// <param name="start">The start key of the range.</param>
+    /// <param name="end">The end key of the range.</param>
+    /// <param name="seq">The sequence number for the range.</param>
     static void InsertOrUpdateRange(
         List<(byte[] Start, byte[] End, ulong Seq)> ranges, byte[] start, byte[] end,
         ulong seq)

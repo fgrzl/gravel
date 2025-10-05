@@ -1,9 +1,21 @@
 ﻿namespace Gravel.Internals;
 
+/// <summary>
+///     Provides static methods for computing CRC32C checksums.
+///     Uses a precomputed table for fast calculation.
+/// </summary>
 public static class Crc32C
 {
+    /// <summary>
+    ///     Precomputed CRC32C table for fast lookup.
+    /// </summary>
     static readonly uint[] Table = GenerateTable();
 
+    /// <summary>
+    ///     Computes the CRC32C checksum for the given data.
+    /// </summary>
+    /// <param name="data">The input data to compute the checksum for.</param>
+    /// <returns>The CRC32C checksum as a 32-bit unsigned integer.</returns>
     public static uint Compute(ReadOnlySpan<byte> data)
     {
         var crc = 0xFFFFFFFF;
@@ -16,6 +28,10 @@ public static class Crc32C
         return ~crc;
     }
 
+    /// <summary>
+    ///     Generates the CRC32C lookup table.
+    /// </summary>
+    /// <returns>The generated table as an array of 256 unsigned integers.</returns>
     static uint[] GenerateTable()
     {
         const uint poly = 0x1EDC6F41;

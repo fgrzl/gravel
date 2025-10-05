@@ -15,9 +15,9 @@ public class CompactionWorkerTests
         // Arrange
         var inputs = new[]
         {
-            Encoding.UTF8.GetBytes("hello "),
-            Encoding.UTF8.GetBytes("world"),
-            Encoding.UTF8.GetBytes("!")
+            "hello "u8.ToArray(),
+            "world"u8.ToArray(),
+            "!"u8.ToArray()
         };
 
         var task = new FakeCompactionTask("t1", inputs);
@@ -37,7 +37,7 @@ public class CompactionWorkerTests
     public async Task should_report_progress_given_task_when_processing()
     {
         // Arrange
-        var inputs = new[] { Encoding.UTF8.GetBytes("abc"), Encoding.UTF8.GetBytes("def") };
+        var inputs = new[] { "abc"u8.ToArray(), "def"u8.ToArray() };
         var task = new FakeCompactionTask("t2", inputs);
         using var worker = new CompactionWorker(10_000_000);
 

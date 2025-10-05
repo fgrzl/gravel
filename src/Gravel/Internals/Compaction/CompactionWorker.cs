@@ -15,6 +15,12 @@ public sealed class CompactionWorker : ICompactionWorker
     readonly TokenBucketLimiter _limiter;
     readonly Channel<ICompactionTask> _queue;
 
+    /// <summary>
+    ///     Initializes a new instance of <see cref="CompactionWorker"/>.
+    /// </summary>
+    /// <param name="bytesPerSecond">Initial bytes-per-second rate limit.</param>
+    /// <param name="maxConcurrent">Maximum number of concurrent compaction tasks.</param>
+    /// <param name="bufferSize">Size of buffer for streaming compaction.</param>
     public CompactionWorker(double bytesPerSecond, int maxConcurrent = 1, int bufferSize = 64 * 1024)
     {
         _queue = Channel.CreateUnbounded<ICompactionTask>(new UnboundedChannelOptions
@@ -25,18 +31,34 @@ public sealed class CompactionWorker : ICompactionWorker
         _ = Task.Run(() => DispatchLoopAsync(_cts.Token));
     }
 
+    /// <summary>
+    ///     Raised when compaction progress changes.
+    /// </summary>
     public event Action<CompactionProgress>? ProgressChanged;
 
+    /// <summary>
+    ///     Enqueues a compaction task for background processing.
+    /// </summary>
+    /// <param name="task">The compaction task to enqueue.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A ValueTask representing the enqueue operation.</returns>
     public ValueTask EnqueueAsync(ICompactionTask task, CancellationToken ct = default)
     {
         return _queue.Writer.WriteAsync(task, ct);
     }
 
+    /// <summary>
+    ///     Updates the global bytes-per-second rate used by the worker.
+    /// </summary>
+    /// <param name="bytesPerSecond">The new bytes-per-second rate.</param>
     public void UpdateBytesPerSecond(double bytesPerSecond)
     {
         _limiter.UpdateRate(bytesPerSecond, Math.Max(bytesPerSecond, _bufferSize));
     }
 
+    /// <summary>
+    ///     Disposes the worker and cancels background processing.
+    /// </summary>
     public void Dispose()
     {
         _cts.Cancel();
@@ -44,6 +66,10 @@ public sealed class CompactionWorker : ICompactionWorker
         _concurrency.Dispose();
     }
 
+    /// <summary>
+    ///     Background loop that dispatches compaction tasks from the queue.
+    /// </summary>
+    /// <param name="ct">A cancellation token.</param>
     async Task DispatchLoopAsync(CancellationToken ct)
     {
         try
@@ -73,6 +99,11 @@ public sealed class CompactionWorker : ICompactionWorker
         }
     }
 
+    /// <summary>
+    ///     Processes a single compaction task, streaming input and output, and reporting progress.
+    /// </summary>
+    /// <param name="task">The compaction task to process.</param>
+    /// <param name="ct">A cancellation token.</param>
     async Task ProcessTaskAsync(ICompactionTask task, CancellationToken ct)
     {
         await task.PrepareAsync(ct).ConfigureAwait(false);

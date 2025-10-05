@@ -8,6 +8,7 @@ using Gravel.Compression;
 using Gravel.Internals;
 using Gravel.Internals.Filters;
 using Gravel.Logging;
+using Gravel.Storage.Shared;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -35,6 +36,13 @@ public sealed class FileSstReader : ISstReader
     readonly MemoryMappedViewStream _stream;
     FullFilter? _filter;
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="FileSstReader"/> class.
+    /// </summary>
+    /// <param name="path">Path to the SST file to open.</param>
+    /// <param name="compressorFactory">Factory used to create decompressors for blocks.</param>
+    /// <param name="logger">Optional logger for diagnostics.</param>
+    /// <exception cref="InvalidDataException">Thrown when the file is not a valid Rocks/Pebble SST.</exception>
     public FileSstReader(string path, ICompressorFactory compressorFactory, ILogger<FileSstReader>? logger = null)
     {
         _path = path;
@@ -64,17 +72,31 @@ public sealed class FileSstReader : ISstReader
         Log.SstOpenedRead(_logger, path, 64 * 1024);
     }
 
+    /// <summary>
+    ///     Releases resources held by the reader.
+    /// </summary>
     public void Dispose()
     {
         _stream.Dispose();
         _mmf.Dispose();
     }
 
+    /// <summary>
+    ///     Ensures the reader has completed asynchronous initialization.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A task that completes when initialization has finished.</returns>
     public ValueTask InitializeAsync(CancellationToken ct = default)
     {
         return _initTask.IsCompletedSuccessfully ? ValueTask.CompletedTask : new ValueTask(_initTask);
     }
 
+    /// <summary>
+    ///     Checks whether the given key might be present in the SST using the full filter if available.
+    /// </summary>
+    /// <param name="key">The user key to test.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>True if the key may be present; false if definitely not.</returns>
     public ValueTask<bool> MightContainAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default)
     {
         if (!_initTask.IsCompleted)
@@ -87,6 +109,10 @@ public sealed class FileSstReader : ISstReader
         return ValueTask.FromResult(_filter == null || _filter.MightContain(key.Span));
     }
 
+    /// <summary>
+    ///     Gets the range delete tombstones contained in the SST.
+    /// </summary>
+    /// <returns>A read-only list of ranges with their sequence numbers.</returns>
     public IReadOnlyList<(ReadOnlyMemory<byte> Start, ReadOnlyMemory<byte> End, ulong Seq)> GetRangeDeletes()
     {
         return _rangeDeletes
@@ -99,6 +125,12 @@ public sealed class FileSstReader : ISstReader
     // Public API
     // ---------------------------------------------------------------------
 
+    /// <summary>
+    ///     Looks up a key in the SST and returns the latest visible entry, honoring range deletes.
+    /// </summary>
+    /// <param name="key">The user key to fetch.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The matching <see cref="DbEntry"/> or null if not found or masked.</returns>
     public async ValueTask<DbEntry?> GetAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default)
     {
         await InitializeAsync(ct).ConfigureAwait(false);
@@ -125,6 +157,11 @@ public sealed class FileSstReader : ISstReader
         return null;
     }
 
+    /// <summary>
+    ///     Reads all entries in key order, yielding only those not masked by range deletes.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>An async sequence of <see cref="DbEntry"/> values.</returns>
     public async IAsyncEnumerable<DbEntry> ReadAllAsync([EnumeratorCancellation] CancellationToken ct = default)
     {
         await InitializeAsync(ct).ConfigureAwait(false);
@@ -398,7 +435,7 @@ public sealed class FileSstReader : ISstReader
     /// <param name="keyBuf">Stack-allocated buffer for key reconstruction.</param>
     /// <param name="keyLen">Current key length (updated on success).</param>
     /// <param name="entry">The parsed <see cref="DbEntryLight"/> if successful.</param>
-    /// <returns>True if an entry was parsed (may be malformed); false if end of block.</returns>
+    /// <returns>True if an entry was parsed (maybe malformed); false if end of block.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool TryReadNextEntryLight(byte[] raw, int restartsOff, ref int pos, byte[] keyBuf, ref int keyLen, out DbEntryLight entry)
     {

@@ -85,7 +85,7 @@ public class MemTableBenchmarks
     {
         // apply a masking range, then re-put a few keys newer than the range
         var seqBase = (ulong)(N + 10);
-        _mt.PutRangeTombstone(Encoding.UTF8.GetBytes("key-000100"), Encoding.UTF8.GetBytes("key-000900"), seqBase);
+        _mt.PutRangeTombstone("key-000100"u8, "key-000900"u8, seqBase);
         for (var i = 200; i < 300; i++) _mt.Put(_keys[i], _values[i], seqBase + (ulong)i);
         // probe some keys inside and outside range
         var found = 0;

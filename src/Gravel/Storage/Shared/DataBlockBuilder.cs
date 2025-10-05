@@ -2,9 +2,13 @@
 using System.Buffers.Binary;
 using Gravel.Internals;
 
-namespace Gravel.Abstractions.Storage.Sst;
+namespace Gravel.Storage.Shared;
 
-sealed class DataBlockBuilder(int restartInterval = 16)
+/// <summary>
+/// Builds SST data blocks using prefix compression with restart points.
+/// </summary>
+/// <param name="restartInterval">Number of entries between restart points (minimum 1).</param>
+public sealed class DataBlockBuilder(int restartInterval = 16)
 {
     readonly MemoryStream _buf = new();
     readonly int _restartInterval = Math.Max(1, restartInterval);
@@ -12,12 +16,22 @@ sealed class DataBlockBuilder(int restartInterval = 16)
     int _entrySinceRestart;
     byte[] _prevKey = [];
 
+    /// <summary>
+    /// Gets the current serialized size of the block including restart array and count.
+    /// </summary>
     public int CurrentSize => (int)_buf.Length + _restarts.Count * 4 + 4;
 
+    /// <summary>
+    /// Adds an entry to the block using shared-prefix compression relative to the previous key.
+    /// </summary>
+    /// <param name="key">The internal key to add (includes sequence/type trailer if applicable).</param>
+    /// <param name="value">The associated value bytes.</param>
     public void Add(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
     {
         var shared = 0;
-        if (_entrySinceRestart < _restartInterval)
+        // IMPORTANT: the first entry after a restart (or at the beginning) must use shared=0
+        // so that a reader can reconstruct keys starting from that restart offset.
+        if (_entrySinceRestart > 0)
         {
             var maxShared = Math.Min(_prevKey.Length, key.Length);
             while (shared < maxShared && _prevKey[shared] == key[shared]) shared++;
@@ -47,6 +61,10 @@ sealed class DataBlockBuilder(int restartInterval = 16)
         }
     }
 
+    /// <summary>
+    /// Finalizes the block and returns a newly allocated byte array.
+    /// </summary>
+    /// <returns>The serialized block bytes.</returns>
     public byte[] Finish()
     {
         // fallback convenience: produce a new array (compatible with existing callers)
@@ -71,6 +89,10 @@ sealed class DataBlockBuilder(int restartInterval = 16)
         return result;
     }
 
+    /// <summary>
+    /// Finalizes the block into a pooled buffer to avoid an allocation. Caller must return the buffer.
+    /// </summary>
+    /// <returns>A <see cref="PooledBuffer"/> containing the serialized block.</returns>
     public PooledBuffer FinishPooled()
     {
         var totalLen = (int)_buf.Length + _restarts.Count * 4 + 4;
@@ -102,6 +124,9 @@ sealed class DataBlockBuilder(int restartInterval = 16)
         }
     }
 
+    /// <summary>
+    /// Resets the builder for reuse by clearing buffers and state.
+    /// </summary>
     public void Reset()
     {
         _buf.SetLength(0);
@@ -111,10 +136,20 @@ sealed class DataBlockBuilder(int restartInterval = 16)
         _prevKey = [];
     }
 
-    // Pooled result to avoid allocating the final array. Caller must return the buffer when done.
+    /// <summary>
+    /// Pooled result to avoid allocating the final array. Caller must return the buffer to the pool.
+    /// </summary>
+    /// <param name="buffer">The rented buffer containing the block bytes.</param>
+    /// <param name="length">The number of valid bytes in <see cref="Buffer"/>.</param>
     public struct PooledBuffer(byte[] buffer, int length)
     {
+        /// <summary>
+        /// Gets the rented buffer containing the serialized block.
+        /// </summary>
         public byte[] Buffer { get; } = buffer;
+        /// <summary>
+        /// Gets the number of valid bytes in <see cref="Buffer"/>.
+        /// </summary>
         public int Length { get; } = length;
     }
 }

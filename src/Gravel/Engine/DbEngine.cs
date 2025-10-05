@@ -368,8 +368,8 @@ public class DbEngine : IDbEngine
         _initGate.Dispose();
         var snapshot = _levels.SnapshotLevels();
         foreach (var lvl in snapshot)
-        foreach (var f in lvl)
-            f.Reader.Dispose();
+            foreach (var f in lvl)
+                f.Reader.Dispose();
 
         try
         {
@@ -393,8 +393,8 @@ public class DbEngine : IDbEngine
         _initGate.Dispose();
         var snapshot = _levels.SnapshotLevels();
         foreach (var lvl in snapshot)
-        foreach (var f in lvl)
-            f.Reader.Dispose();
+            foreach (var f in lvl)
+                f.Reader.Dispose();
 
         try
         {
@@ -481,7 +481,6 @@ public class DbEngine : IDbEngine
         return next;
     }
 
-
     async ValueTask MaybeFlushAsync(CancellationToken ct)
     {
         if (_memTableManager.MemTable.Count < _options.MemTableThreshold) return;
@@ -510,25 +509,6 @@ public class DbEngine : IDbEngine
         act?.SetTag("sst.path", sst.Path);
 
         await MaybeCompactAsync(ct).ConfigureAwait(false);
-    }
-
-    public static async IAsyncEnumerable<DbEntry> EnumerateMemTableEntriesAsync(
-        MemTable mt,
-        [EnumeratorCancellation] CancellationToken ct)
-    {
-        foreach (var (k, v, seq, kind) in mt.Scan())
-        {
-            ct.ThrowIfCancellationRequested();
-            var e = kind switch
-            {
-                DbEntryKind.Put => DbEntry.Put(k, v, seq),
-                DbEntryKind.DeleteKey => DbEntry.DeleteKey(k, seq),
-                DbEntryKind.DeleteRange => DbEntry.DeleteRange(k, v, seq),
-                _ => default
-            };
-            yield return e;
-            await Task.Yield();
-        }
     }
 
     async ValueTask MaybeCompactAsync(CancellationToken ct)

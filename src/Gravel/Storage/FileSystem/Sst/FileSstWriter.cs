@@ -5,11 +5,15 @@ using Gravel.Abstractions.Storage.Sst;
 using Gravel.Compression.Default;
 using Gravel.Internals;
 using Gravel.Logging;
+using Gravel.Storage.Shared;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Gravel.Storage.FileSystem.Sst;
 
+/// <summary>
+/// File-based writer for SST (Sorted String Table) files.
+/// </summary>
 public sealed class FileSstWriter : ISstWriter
 {
     const ulong RocksMagic = 0xDB4775248B80FB57UL;
@@ -37,6 +41,15 @@ public sealed class FileSstWriter : ISstWriter
     byte[]? _lastKeyBuf;
     int _lastKeyLen;
 
+    /// <summary>
+    /// Initializes a new <see cref="FileSstWriter"/>.
+    /// </summary>
+    /// <param name="path">Final SST path.</param>
+    /// <param name="expectedEntries">Expected number of entries for sizing.</param>
+    /// <param name="bufferSize">I/O buffer size.</param>
+    /// <param name="blockSize">Target data block size.</param>
+    /// <param name="compressor">Optional block compressor.</param>
+    /// <param name="logger">Optional logger.</param>
     public FileSstWriter(
         string path,
         int expectedEntries,
@@ -66,6 +79,11 @@ public sealed class FileSstWriter : ISstWriter
         _initTask = Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Writes entries to the SST.
+    /// </summary>
+    /// <param name="entries">Stream of database entries.</param>
+    /// <param name="ct">Cancellation token.</param>
     public async ValueTask WriteAsync(IAsyncEnumerable<DbEntry> entries, CancellationToken ct = default)
     {
         byte[]? tempKeyBuf = null;
@@ -88,6 +106,10 @@ public sealed class FileSstWriter : ISstWriter
         }
     }
 
+    /// <summary>
+    /// Flushes any pending data blocks and writes footer structures.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
     public async ValueTask FlushAsync(CancellationToken ct = default)
     {
         await FlushDataBlockAsync(ct).ConfigureAwait(false);
@@ -117,6 +139,9 @@ public sealed class FileSstWriter : ISstWriter
         await _stream.FlushAsync(ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Completes writing, seals the SST file, and releases resources.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         try
@@ -157,14 +182,16 @@ public sealed class FileSstWriter : ISstWriter
     }
 
     /// <summary>
-    ///     Ensure writer has completed any async initialization. Safe to call multiple times.
-    ///     Currently a no-op but provided for API symmetry and future async init needs.
+    /// Ensure writer has completed any async initialization. Safe to call multiple times.
+    /// Currently, a no-op but provided for API symmetry and future async init needs.
     /// </summary>
     public ValueTask InitializeAsync(CancellationToken ct = default)
     {
         if (ct.IsCancellationRequested) return ValueTask.FromCanceled(ct);
         return _initTask.IsCompletedSuccessfully ? ValueTask.CompletedTask : new ValueTask(_initTask);
     }
+
+    // Internal helpers below -------------------------------------------------
 
     bool HandleEntry(DbEntry entry, ref byte[]? tempKeyBuf)
     {

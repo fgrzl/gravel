@@ -1,6 +1,6 @@
 ﻿using Gravel.Internals;
 
-namespace Gravel.Abstractions.Storage.Sst;
+namespace Gravel.Storage.Shared;
 
 /// <summary>
 ///     Represents a handle to a block in an SST file, including its offset and size.

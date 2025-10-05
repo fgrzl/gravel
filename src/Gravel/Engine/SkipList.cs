@@ -2,18 +2,40 @@
 
 /// <summary>
 ///     Generic skip list mapping ordered keys to values.
+///     Provides efficient insert, update, delete, and scan operations.
 /// </summary>
 public sealed class SkipList<TKey, TValue>(IComparer<TKey>? comparer = null)
 {
+    /// <summary>
+    ///     Maximum level for skip list nodes.
+    /// </summary>
     const int MaxLevel = 16;
+    /// <summary>
+    ///     Comparer used for key ordering.
+    /// </summary>
     readonly IComparer<TKey> _comparer = comparer ?? Comparer<TKey>.Default;
-    readonly Node _head = new(default!, default!, MaxLevel); // dummy head
+    /// <summary>
+    ///     Dummy head node for skip list.
+    /// </summary>
+    readonly Node _head = new(default!, default!, MaxLevel);
+    /// <summary>
+    ///     Random number generator for level assignment.
+    /// </summary>
     readonly Random _rand = new();
 
     int _level = 1;
 
+    /// <summary>
+    ///     Gets the number of entries in the skip list.
+    /// </summary>
     public int Count { get; private set; }
 
+    /// <summary>
+    ///     Tries to get the value for a given key.
+    /// </summary>
+    /// <param name="key">The key to look up.</param>
+    /// <param name="value">The value if found.</param>
+    /// <returns>True if found, otherwise false.</returns>
     public bool TryGet(TKey key, out TValue? value)
     {
         var x = _head;
@@ -32,6 +54,11 @@ public sealed class SkipList<TKey, TValue>(IComparer<TKey>? comparer = null)
         return false;
     }
 
+    /// <summary>
+    ///     Inserts or updates a key-value pair in the skip list.
+    /// </summary>
+    /// <param name="key">The key to insert or update.</param>
+    /// <param name="value">The value to associate.</param>
     public void InsertOrUpdate(TKey key, TValue value)
     {
         var update = new Node?[MaxLevel];
@@ -70,6 +97,11 @@ public sealed class SkipList<TKey, TValue>(IComparer<TKey>? comparer = null)
         Count++;
     }
 
+    /// <summary>
+    ///     Deletes a key from the skip list.
+    /// </summary>
+    /// <param name="key">The key to delete.</param>
+    /// <returns>True if the key was deleted, otherwise false.</returns>
     public bool Delete(TKey key)
     {
         var update = new Node?[MaxLevel];
@@ -97,6 +129,14 @@ public sealed class SkipList<TKey, TValue>(IComparer<TKey>? comparer = null)
         return true;
     }
 
+    /// <summary>
+    ///     Scans the skip list for entries in the specified range.
+    /// </summary>
+    /// <param name="start">Optional start key (inclusive).</param>
+    /// <param name="end">Optional end key (exclusive).</param>
+    /// <param name="hasStart">True if start key is specified.</param>
+    /// <param name="hasEnd">True if end key is specified.</param>
+    /// <returns>An enumerable of key/value pairs.</returns>
     public IEnumerable<(TKey Key, TValue Value)> Scan(
         TKey? start = default,
         TKey? end = default,
@@ -121,6 +161,10 @@ public sealed class SkipList<TKey, TValue>(IComparer<TKey>? comparer = null)
         }
     }
 
+    /// <summary>
+    ///     Generates a random level for skip list insertion.
+    /// </summary>
+    /// <returns>The random level.</returns>
     int RandomLevel()
     {
         var lvl = 1;
@@ -129,10 +173,22 @@ public sealed class SkipList<TKey, TValue>(IComparer<TKey>? comparer = null)
         return lvl;
     }
 
+    /// <summary>
+    ///     Skip list node for key/value pairs.
+    /// </summary>
     sealed class Node(TKey key, TValue value, int level)
     {
+        /// <summary>
+        ///     Forward pointers for each level.
+        /// </summary>
         public readonly Node?[] Forward = new Node[level];
+        /// <summary>
+        ///     The key stored in this node.
+        /// </summary>
         public readonly TKey Key = key;
+        /// <summary>
+        ///     The value stored in this node.
+        /// </summary>
         public TValue Value = value;
     }
 }

@@ -25,4 +25,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\Gravel\Gravel.csproj" />
 	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="Abstractions\" />
+	</ItemGroup>
 </Project>
