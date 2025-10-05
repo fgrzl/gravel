@@ -308,7 +308,7 @@ public class MemTableTests
 
         // Wait briefly for the writer to produce at least one mutation (avoid flakiness)
         var start = DateTime.UtcNow;
-        while (Volatile.Read(ref writes) == 0 && (DateTime.UtcNow - start) < TimeSpan.FromSeconds(1))
+        while (Volatile.Read(ref writes) == 0 && DateTime.UtcNow - start < TimeSpan.FromSeconds(1))
             await Task.Yield();
 
         // Act & Assert: Reader loop repeatedly scans; should never throw and should see non-empty at least once

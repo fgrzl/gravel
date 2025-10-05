@@ -10,11 +10,14 @@ namespace Gravel.Compression.Snappy;
 /// </summary>
 public static class SnappyCodec
 {
-    const uint HashMul = 2654435761u;
     const int HashBits = 16; // 64k table
-    const int HashSize = 1 << HashBits;
 
     // Public API: compress/decompress
+    /// <summary>
+    ///     Compresses the input data using the Snappy algorithm (unframed).
+    /// </summary>
+    /// <param name="input">The input data to compress.</param>
+    /// <returns>A compressed byte array containing the Snappy-encoded data.</returns>
     public static byte[] Compress(ReadOnlySpan<byte> input)
     {
         if (input.IsEmpty) return [0];
@@ -24,6 +27,13 @@ public static class SnappyCodec
         return outBuf[..offset].ToArray();
     }
 
+    /// <summary>
+    ///     Compresses the input data into a caller-provided buffer using the Snappy algorithm (unframed).
+    /// </summary>
+    /// <param name="input">The input data to compress.</param>
+    /// <param name="destination">The buffer to receive the compressed data.</param>
+    /// <param name="bytesWritten">The number of bytes written to <paramref name="destination" />.</param>
+    /// <returns>True if compression succeeded and the buffer was large enough; otherwise, false.</returns>
     public static bool TryCompress(ReadOnlySpan<byte> input, Span<byte> destination, out int bytesWritten)
     {
         if (input.IsEmpty)
@@ -51,6 +61,12 @@ public static class SnappyCodec
         return true;
     }
 
+    /// <summary>
+    ///     Decompresses Snappy-compressed data (unframed) into a new byte array.
+    /// </summary>
+    /// <param name="input">The compressed input data.</param>
+    /// <returns>The decompressed byte array.</returns>
+    /// <exception cref="InvalidDataException">Thrown if the input is not valid Snappy data.</exception>
     public static byte[] Decompress(ReadOnlySpan<byte> input)
     {
         var pos = 0;
@@ -62,6 +78,13 @@ public static class SnappyCodec
         return output;
     }
 
+    /// <summary>
+    ///     Decompresses Snappy-compressed data (unframed) into a caller-provided buffer.
+    /// </summary>
+    /// <param name="input">The compressed input data.</param>
+    /// <param name="destination">The buffer to receive the decompressed data.</param>
+    /// <param name="bytesWritten">The number of bytes written to <paramref name="destination" />.</param>
+    /// <returns>True if decompression succeeded and the buffer was large enough; otherwise, false.</returns>
     public static bool TryDecompress(ReadOnlySpan<byte> input, Span<byte> destination, out int bytesWritten)
     {
         var pos = 0;
@@ -85,7 +108,7 @@ public static class SnappyCodec
                 return false;
             }
 
-            if (TryDecodeCopy(input, ref pos, kind, tag, destination, ref written)) 
+            if (TryDecodeCopy(input, ref pos, kind, tag, destination, ref written))
                 continue;
             bytesWritten = 0;
             return false;
@@ -95,7 +118,14 @@ public static class SnappyCodec
         return written == expected;
     }
 
-    // Helper for decoding literal blocks
+    /// <summary>
+    ///     Decodes a literal block from the Snappy stream.
+    /// </summary>
+    /// <param name="input">The compressed input data.</param>
+    /// <param name="pos">The current position in the input span (updated).</param>
+    /// <param name="destination">The buffer to receive the decompressed data.</param>
+    /// <param name="written">The current write position in the destination buffer (updated).</param>
+    /// <returns>True if decoding succeeded; otherwise, false.</returns>
     static bool TryDecodeLiteral(ReadOnlySpan<byte> input, ref int pos, Span<byte> destination, ref int written)
     {
         var n = input.Length;
@@ -105,7 +135,7 @@ public static class SnappyCodec
         else
         {
             var extra = len - 59;
-            if (extra < 1 || extra > 4 || pos + extra > n) 
+            if (extra < 1 || extra > 4 || pos + extra > n)
                 return false;
 
             uint lenm1 = 0;
@@ -121,7 +151,16 @@ public static class SnappyCodec
         return true;
     }
 
-    // Helper for decoding copy blocks
+    /// <summary>
+    ///     Decodes a copy block from the Snappy stream.
+    /// </summary>
+    /// <param name="input">The compressed input data.</param>
+    /// <param name="pos">The current position in the input span (updated).</param>
+    /// <param name="kind">The copy block kind (1, 2, or 3).</param>
+    /// <param name="tag">The block tag byte.</param>
+    /// <param name="destination">The buffer to receive the decompressed data.</param>
+    /// <param name="written">The current write position in the destination buffer (updated).</param>
+    /// <returns>True if decoding succeeded; otherwise, false.</returns>
     static bool TryDecodeCopy(
         ReadOnlySpan<byte> input, ref int pos, int kind, int tag, Span<byte> destination, ref int written)
     {
@@ -162,8 +201,12 @@ public static class SnappyCodec
         return true;
     }
 
-    // -------------------- helpers --------------------
-
+    /// <summary>
+    ///     Writes a variable-length integer to the destination buffer.
+    /// </summary>
+    /// <param name="dst">The buffer to write to.</param>
+    /// <param name="value">The value to encode.</param>
+    /// <returns>The number of bytes written.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int WriteVarInt(Span<byte> dst, uint value)
     {
@@ -178,6 +221,13 @@ public static class SnappyCodec
         return i;
     }
 
+    /// <summary>
+    ///     Reads a variable-length integer from the source buffer.
+    /// </summary>
+    /// <param name="src">The buffer to read from.</param>
+    /// <param name="pos">The current position in the buffer (updated).</param>
+    /// <param name="value">The decoded value.</param>
+    /// <returns>True if decoding succeeded; otherwise, false.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool TryReadVarInt(ReadOnlySpan<byte> src, ref int pos, out int value)
     {
@@ -202,6 +252,12 @@ public static class SnappyCodec
         return false;
     }
 
+    /// <summary>
+    ///     Writes a literal block to the destination buffer.
+    /// </summary>
+    /// <param name="dst">The buffer to write to.</param>
+    /// <param name="literal">The literal data to encode.</param>
+    /// <returns>The number of bytes written.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int WriteLiteral(Span<byte> dst, ReadOnlySpan<byte> literal)
     {

@@ -1,9 +1,4 @@
-using System;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using Gravel.Abstractions.Storage.Sst;
-using Gravel.Internals;
 using Gravel.Logging;
 using Microsoft.Extensions.Logging;
 
@@ -11,14 +6,14 @@ namespace Gravel.Engine.Managers;
 
 sealed class SstManager(ISstFactory sstFactory, Levels levels, string sstDir, ILogger logger)
 {
-    readonly ISstFactory _sstFactory = sstFactory ?? throw new ArgumentNullException(nameof(sstFactory));
     readonly Levels _levels = levels ?? throw new ArgumentNullException(nameof(levels));
-    readonly string _sstDir = sstDir ?? throw new ArgumentNullException(nameof(sstDir));
     readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    readonly string _sstDir = sstDir ?? throw new ArgumentNullException(nameof(sstDir));
+    readonly ISstFactory _sstFactory = sstFactory ?? throw new ArgumentNullException(nameof(sstFactory));
 
     public async Task LoadExistingAsync(CancellationToken ct = default)
     {
-        for (var l = 0; ; l++)
+        for (var l = 0;; l++)
         {
             if (l >= _levels.LevelCount) break;
             var files = _sstFactory.EnumerateLevelFiles(_sstDir, l);
@@ -45,7 +40,7 @@ sealed class SstManager(ISstFactory sstFactory, Levels levels, string sstDir, IL
 
         await using (var w = await _sstFactory.CreateWriterAsync(path, mt.Count, ct).ConfigureAwait(false))
         {
-            await w.WriteAsync(Gravel.Engine.DbEngine.EnumerateMemTableEntriesAsync(mt, ct), ct).ConfigureAwait(false);
+            await w.WriteAsync(DbEngine.EnumerateMemTableEntriesAsync(mt, ct), ct).ConfigureAwait(false);
         }
 
         var r = await _sstFactory.CreateReaderAsync(path, ct).ConfigureAwait(false);

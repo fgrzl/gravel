@@ -1,9 +1,5 @@
-using System.Threading;
-using System.Threading.Tasks;
-using System.Collections.Generic;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Wal;
-using Gravel.Internals;
 
 namespace Gravel.Engine.Managers;
 
@@ -21,12 +17,34 @@ class WalManager : IAsyncDisposable, IDisposable
 
     public IWalWriter WalWriter { get; }
 
+    public ulong LastSequence => WalWriter.LastSequence;
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await WalWriter.DisposeAsync().ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            WalWriter.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+        catch
+        {
+        }
+    }
+
     public IWalReader CreateReader()
     {
         return _walFactory.CreateReader(_walDir);
     }
-
-    public ulong LastSequence => WalWriter.LastSequence;
 
     public ValueTask BeginTransactionAsync(ulong txnId, CancellationToken ct = default)
     {
@@ -71,7 +89,8 @@ class WalManager : IAsyncDisposable, IDisposable
         return list;
     }
 
-    public async ValueTask WriteTransactionAsync(ulong txnId, IReadOnlyList<DbEntry> entries, bool flushOnCommit = false, CancellationToken ct = default)
+    public async ValueTask WriteTransactionAsync(
+        ulong txnId, IReadOnlyList<DbEntry> entries, bool flushOnCommit = false, CancellationToken ct = default)
     {
         await WalWriter.BeginTransactionAsync(txnId, ct).ConfigureAwait(false);
         try
@@ -94,6 +113,7 @@ class WalManager : IAsyncDisposable, IDisposable
             catch
             {
             }
+
             throw;
         }
     }
@@ -132,27 +152,5 @@ class WalManager : IAsyncDisposable, IDisposable
         }
 
         return replayed;
-    }
-
-    public void Dispose()
-    {
-        try
-        {
-            WalWriter.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        }
-        catch
-        {
-        }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        try
-        {
-            await WalWriter.DisposeAsync().ConfigureAwait(false);
-        }
-        catch
-        {
-        }
     }
 }

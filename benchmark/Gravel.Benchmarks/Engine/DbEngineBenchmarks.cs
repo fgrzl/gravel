@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
-using Gravel;
 using Gravel.Abstractions;
 
 namespace Gravel.Benchmarks.Engine;
@@ -15,10 +14,10 @@ public class DbEngineBenchmarks
     IDbEngine _engine = null!;
     byte[][] _keys = null!;
     byte[][] _vals = null!;
+    [Params(128)] public int BatchSize;
 
     [Params(10_000)] public int N;
     [Params(32)] public int ValueSize;
-    [Params(128)] public int BatchSize;
 
     [GlobalSetup]
     public void GlobalSetup()

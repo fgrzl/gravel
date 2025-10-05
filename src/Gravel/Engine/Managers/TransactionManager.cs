@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Wal;
 using Gravel.Exceptions;
@@ -11,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Gravel.Engine.Managers;
 
-internal sealed class TransactionManager(
+sealed class TransactionManager(
     MemTableManager memTableManager,
     Levels levels,
     IWalWriter walWriter,
@@ -22,15 +18,20 @@ internal sealed class TransactionManager(
     Func<ulong> allocateTxnId,
     Func<CancellationToken, ValueTask> maybeFlushAsync)
 {
-    readonly MemTableManager _memTableManager = memTableManager ?? throw new ArgumentNullException(nameof(memTableManager));
-    readonly Levels _levels = levels ?? throw new ArgumentNullException(nameof(levels));
-    readonly IWalWriter _walWriter = walWriter ?? throw new ArgumentNullException(nameof(walWriter));
-    readonly GravelOptions _options = options ?? throw new ArgumentNullException(nameof(options));
-    readonly SemaphoreSlim _commitGate = commitGate ?? throw new ArgumentNullException(nameof(commitGate));
-    readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     readonly Func<ulong> _allocateSeq = allocateSeq ?? throw new ArgumentNullException(nameof(allocateSeq));
     readonly Func<ulong> _allocateTxnId = allocateTxnId ?? throw new ArgumentNullException(nameof(allocateTxnId));
-    readonly Func<CancellationToken, ValueTask> _maybeFlushAsync = maybeFlushAsync ?? throw new ArgumentNullException(nameof(maybeFlushAsync));
+    readonly SemaphoreSlim _commitGate = commitGate ?? throw new ArgumentNullException(nameof(commitGate));
+    readonly Levels _levels = levels ?? throw new ArgumentNullException(nameof(levels));
+    readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+    readonly Func<CancellationToken, ValueTask> _maybeFlushAsync =
+        maybeFlushAsync ?? throw new ArgumentNullException(nameof(maybeFlushAsync));
+
+    readonly MemTableManager _memTableManager =
+        memTableManager ?? throw new ArgumentNullException(nameof(memTableManager));
+
+    readonly GravelOptions _options = options ?? throw new ArgumentNullException(nameof(options));
+    readonly IWalWriter _walWriter = walWriter ?? throw new ArgumentNullException(nameof(walWriter));
 
     public async ValueTask CommitTransactionAsync(Transaction txn, IReadOnlyList<Mutation> staged, CancellationToken ct)
     {
@@ -60,14 +61,16 @@ internal sealed class TransactionManager(
                             throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
                         if (await KeyExistsInSstAsync(m.Key, ct).ConfigureAwait(false))
                             throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
-                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.Put(m.Key, m.Value, seq), ct).ConfigureAwait(false);
+                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.Put(m.Key, m.Value, seq), ct)
+                            .ConfigureAwait(false);
                         applied.Add(DbEntry.Put(m.Key, m.Value, seq));
                         seenKeys.Add(id);
                         break;
                     }
                     case MutationOp.Put:
                     {
-                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.Put(m.Key, m.Value, seq), ct).ConfigureAwait(false);
+                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.Put(m.Key, m.Value, seq), ct)
+                            .ConfigureAwait(false);
                         applied.Add(DbEntry.Put(m.Key, m.Value, seq));
                         var id = Convert.ToBase64String(m.Key.ToArray());
                         seenKeys.Add(id);
@@ -75,7 +78,8 @@ internal sealed class TransactionManager(
                     }
                     case MutationOp.Delete:
                     {
-                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.DeleteKey(m.Key, seq), ct).ConfigureAwait(false);
+                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.DeleteKey(m.Key, seq), ct)
+                            .ConfigureAwait(false);
                         applied.Add(DbEntry.DeleteKey(m.Key, seq));
                         var id = Convert.ToBase64String(m.Key.ToArray());
                         seenKeys.Remove(id);
@@ -83,7 +87,8 @@ internal sealed class TransactionManager(
                     }
                     case MutationOp.DeleteRange:
                     {
-                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct).ConfigureAwait(false);
+                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct)
+                            .ConfigureAwait(false);
                         applied.Add(DbEntry.DeleteRange(m.Key, m.RangeEnd, seq));
                         break;
                     }
@@ -175,7 +180,8 @@ internal sealed class TransactionManager(
                     }
                     case MutationOp.DeleteRange:
                     {
-                        await _walWriter.AppendAsync(txnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct).ConfigureAwait(false);
+                        await _walWriter.AppendAsync(txnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct)
+                            .ConfigureAwait(false);
                         applied.Add(DbEntry.DeleteRange(m.Key, m.RangeEnd, seq));
                         break;
                     }
@@ -216,49 +222,50 @@ internal sealed class TransactionManager(
             act?.SetTag("op", m.Op.ToString());
             act?.SetTag("key.len", m.Key.Length);
 
-                Log.SingleCommitStarting(_logger, txnId, m.Op, m.Key.Length);
-                await _walWriter.BeginTransactionAsync(txnId, ct).ConfigureAwait(false);
-                var existed = false;
-                var seq = _allocateSeq();
-                switch (m.Op)
-                {
-                    case MutationOp.Insert:
-                        if (_memTableManager.ContainsKey(m.Key))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
-                        if (await KeyExistsInSstAsync(m.Key, ct).ConfigureAwait(false))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
-                        await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct).ConfigureAwait(false);
-                        break;
-                    case MutationOp.Put:
-                        await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct).ConfigureAwait(false);
-                        break;
-                    case MutationOp.Delete:
-                        existed = _memTableManager.IsPut(m.Key);
-                        await _walWriter.AppendAsync(txnId, DbEntry.DeleteKey(m.Key, seq), ct).ConfigureAwait(false);
-                        break;
-                    case MutationOp.DeleteRange:
-                        await _walWriter.AppendAsync(txnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct).ConfigureAwait(false);
-                        break;
-                    default:
-                        throw new GravelInvalidOperationException("Unknown mutation op");
-                }
+            Log.SingleCommitStarting(_logger, txnId, m.Op, m.Key.Length);
+            await _walWriter.BeginTransactionAsync(txnId, ct).ConfigureAwait(false);
+            var existed = false;
+            var seq = _allocateSeq();
+            switch (m.Op)
+            {
+                case MutationOp.Insert:
+                    if (_memTableManager.ContainsKey(m.Key))
+                        throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
+                    if (await KeyExistsInSstAsync(m.Key, ct).ConfigureAwait(false))
+                        throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
+                    await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct).ConfigureAwait(false);
+                    break;
+                case MutationOp.Put:
+                    await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct).ConfigureAwait(false);
+                    break;
+                case MutationOp.Delete:
+                    existed = _memTableManager.IsPut(m.Key);
+                    await _walWriter.AppendAsync(txnId, DbEntry.DeleteKey(m.Key, seq), ct).ConfigureAwait(false);
+                    break;
+                case MutationOp.DeleteRange:
+                    await _walWriter.AppendAsync(txnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct)
+                        .ConfigureAwait(false);
+                    break;
+                default:
+                    throw new GravelInvalidOperationException("Unknown mutation op");
+            }
 
-                await _walWriter.CommitTransactionAsync(txnId, ct).ConfigureAwait(false);
-                if (_options.WalSyncOnCommit) await _walWriter.FlushAsync(ct).ConfigureAwait(false);
-                // apply single staged entry
-                var single = m.Op switch
-                {
-                    MutationOp.Put or MutationOp.Insert => DbEntry.Put(m.Key, m.Value, seq),
-                    MutationOp.Delete => DbEntry.DeleteKey(m.Key, seq),
-                    MutationOp.DeleteRange => DbEntry.DeleteRange(m.Key, m.RangeEnd, seq),
-                    _ => default
-                };
-                _memTableManager.ApplyStagedEntries([single]);
+            await _walWriter.CommitTransactionAsync(txnId, ct).ConfigureAwait(false);
+            if (_options.WalSyncOnCommit) await _walWriter.FlushAsync(ct).ConfigureAwait(false);
+            // apply single staged entry
+            var single = m.Op switch
+            {
+                MutationOp.Put or MutationOp.Insert => DbEntry.Put(m.Key, m.Value, seq),
+                MutationOp.Delete => DbEntry.DeleteKey(m.Key, seq),
+                MutationOp.DeleteRange => DbEntry.DeleteRange(m.Key, m.RangeEnd, seq),
+                _ => default
+            };
+            _memTableManager.ApplyStagedEntries([single]);
 
-                TelemetrySources.Commits.Add(1);
-                Log.SingleCommitCommitted(_logger, txnId, m.Op, seq);
-                await _maybeFlushAsync(CancellationToken.None).ConfigureAwait(false);
-                return existed;
+            TelemetrySources.Commits.Add(1);
+            Log.SingleCommitCommitted(_logger, txnId, m.Op, seq);
+            await _maybeFlushAsync(CancellationToken.None).ConfigureAwait(false);
+            return existed;
         }
         finally
         {

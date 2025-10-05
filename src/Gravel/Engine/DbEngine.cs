@@ -1,44 +1,54 @@
 ﻿using System.Diagnostics;
-using System.IO.Compression;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Sst;
 using Gravel.Abstractions.Storage.Wal;
+using Gravel.Engine.Managers;
 using Gravel.Exceptions;
 using Gravel.Internals;
 using Gravel.Internals.Compaction;
 using Gravel.Logging;
 using Gravel.Telemetry;
-using Gravel.Engine.Managers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Gravel.Engine;
 
+/// <summary>
+///     The main database engine for Gravel, providing LSM storage, transactional operations, compaction, backup, and
+///     restore.
+/// </summary>
 public class DbEngine : IDbEngine
 {
+    readonly BackupManager _backupManager;
     readonly SemaphoreSlim _commitGate = new(1, 1);
     readonly ICompactionWorker _compactionWorker;
     readonly SemaphoreSlim _initGate = new(1, 1);
     readonly Levels _levels;
     readonly ILogger<DbEngine> _logger;
+    readonly MemTableManager _memTableManager = new();
     readonly GravelOptions _options;
     readonly string _sstDir;
     readonly ISstFactory _sstFactory;
     readonly SstManager _sstManager;
+    readonly TransactionManager _txnManager;
     readonly string _walDir;
     readonly WalManager _walManager;
     readonly IWalWriter _walWriter;
-    readonly BackupManager _backupManager;
-    readonly TransactionManager _txnManager;
 
     bool _disposed;
     bool _initialized;
-    readonly MemTableManager _memTableManager = new();
     long _nextTxnId;
     ulong _seq; // in-memory sequence allocator base
 
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="DbEngine" /> class.
+    /// </summary>
+    /// <param name="options">The database options.</param>
+    /// <param name="walFactory">The WAL factory.</param>
+    /// <param name="sstFactory">The SST factory.</param>
+    /// <param name="compactionWorker">The compaction worker.</param>
+    /// <param name="logger">The logger.</param>
     public DbEngine(
         IOptions<GravelOptions> options,
         IWalFactory walFactory,
@@ -73,19 +83,24 @@ public class DbEngine : IDbEngine
         // Transaction manager orchestrates commits and memtable application.
         _txnManager = new TransactionManager(
             _memTableManager,
-             _levels,
-             _walWriter,
-             _options,
-             _commitGate,
-             _logger,
-             () => NextSeq(ref _seq),
-             () => (ulong)Interlocked.Increment(ref _nextTxnId),
-             FlushMemTableAsync);
+            _levels,
+            _walWriter,
+            _options,
+            _commitGate,
+            _logger,
+            () => NextSeq(ref _seq),
+            () => (ulong)Interlocked.Increment(ref _nextTxnId),
+            FlushMemTableAsync);
 
         // SstManager consolidates direct interactions with SST readers/writers
         _sstManager = new SstManager(sstFactory, _levels, _sstDir, _logger);
     }
 
+    /// <summary>
+    ///     Initializes the engine (loads SST levels, replays WAL). Safe to call multiple times.
+    ///     Other API methods will auto-call this lazily, but explicit call can surface errors early.
+    /// </summary>
+    /// <param name="ct">A cancellation token.</param>
     public async ValueTask InitializeAsync(CancellationToken ct = default)
     {
         if (_initialized) return;
@@ -117,6 +132,12 @@ public class DbEngine : IDbEngine
         }
     }
 
+    /// <summary>
+    ///     Checks if a key exists in the database, considering range tombstones and SST lookups.
+    /// </summary>
+    /// <param name="key">The key to check.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>True if the key exists; otherwise, false.</returns>
     public async ValueTask<bool> ExistsAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default)
     {
         // Delegate to GetAsync so range tombstones and SST lookups are applied consistently
@@ -124,6 +145,12 @@ public class DbEngine : IDbEngine
         return got.HasValue;
     }
 
+    /// <summary>
+    ///     Puts (inserts or updates) a key-value pair in the database.
+    /// </summary>
+    /// <param name="key">The key to put.</param>
+    /// <param name="value">The value to associate with the key.</param>
+    /// <param name="ct">A cancellation token.</param>
     public async ValueTask PutAsync(
         ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value,
         CancellationToken ct = default)
@@ -133,6 +160,12 @@ public class DbEngine : IDbEngine
         await CommitSingleAsync(Mutation.Put(key, value), ct);
     }
 
+    /// <summary>
+    ///     Inserts a key-value pair in the database. Fails if the key already exists.
+    /// </summary>
+    /// <param name="key">The key to insert.</param>
+    /// <param name="value">The value to associate with the key.</param>
+    /// <param name="ct">A cancellation token.</param>
     public async ValueTask InsertAsync(
         ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value,
         CancellationToken ct = default)
@@ -142,6 +175,12 @@ public class DbEngine : IDbEngine
         await CommitSingleAsync(Mutation.Insert(key, value), ct);
     }
 
+    /// <summary>
+    ///     Gets the value for a key, considering memtable, range tombstones, and SSTs.
+    /// </summary>
+    /// <param name="key">The key to retrieve.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>The value for the key, or null if not found.</returns>
     public async ValueTask<ReadOnlyMemory<byte>?> GetAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -229,6 +268,12 @@ public class DbEngine : IDbEngine
         return null;
     }
 
+    /// <summary>
+    ///     Deletes a key from the database.
+    /// </summary>
+    /// <param name="key">The key to delete.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>True if the key existed and was deleted; otherwise, false.</returns>
     public async ValueTask<bool> DeleteAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -236,6 +281,12 @@ public class DbEngine : IDbEngine
         return await CommitSingleAsync(Mutation.Delete(key), ct);
     }
 
+    /// <summary>
+    ///     Deletes a range of keys from the database.
+    /// </summary>
+    /// <param name="start">The start of the range (inclusive).</param>
+    /// <param name="end">The end of the range (exclusive).</param>
+    /// <param name="ct">A cancellation token.</param>
     public async ValueTask DeleteRangeAsync(
         ReadOnlyMemory<byte> start, ReadOnlyMemory<byte> end,
         CancellationToken ct = default)
@@ -245,6 +296,11 @@ public class DbEngine : IDbEngine
         await CommitSingleAsync(Mutation.DeleteRange(start, end), ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    ///     Executes a group of mutations atomically as a single commit.
+    /// </summary>
+    /// <param name="mutations">The mutations to commit.</param>
+    /// <param name="ct">A cancellation token.</param>
     public async ValueTask BatchAsync(IEnumerable<Mutation> mutations, CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -254,6 +310,12 @@ public class DbEngine : IDbEngine
         await CommitMutationsAsync(list, ct);
     }
 
+    /// <summary>
+    ///     Scans the database for key-value pairs matching the query.
+    /// </summary>
+    /// <param name="query">The scan query.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>An async enumerable of key-value pairs.</returns>
     public async IAsyncEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> ScanAsync(
         Query query,
         [EnumeratorCancellation] CancellationToken ct = default)
@@ -265,7 +327,8 @@ public class DbEngine : IDbEngine
         act?.SetTag("scan.limit", query.Limit ?? -1);
 
         Log.ScanCalled(_logger, query.Start?.Length, query.End?.Length, query.Limit);
-        var sources = new List<IScanSource> { new MemTableScanSource(_memTableManager.GetMemTable(), 0, query.Start, query.End) };
+        var sources = new List<IScanSource>
+            { new MemTableScanSource(_memTableManager.GetMemTable(), 0, query.Start, query.End) };
         var lvlSnap = _levels.SnapshotLevels();
 
         for (var l = 0; l < lvlSnap.Count; l++)
@@ -278,6 +341,11 @@ public class DbEngine : IDbEngine
         }
     }
 
+    /// <summary>
+    ///     Begins a new transaction.
+    /// </summary>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A new transaction instance.</returns>
     public async ValueTask<IGravelTransaction> BeginTransactionAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -287,7 +355,9 @@ public class DbEngine : IDbEngine
         return new Transaction(this, id, begin);
     }
 
-
+    /// <summary>
+    ///     Disposes the database engine and releases resources.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;
@@ -298,8 +368,8 @@ public class DbEngine : IDbEngine
         _initGate.Dispose();
         var snapshot = _levels.SnapshotLevels();
         foreach (var lvl in snapshot)
-            foreach (var f in lvl)
-                f.Reader.Dispose();
+        foreach (var f in lvl)
+            f.Reader.Dispose();
 
         try
         {
@@ -310,6 +380,9 @@ public class DbEngine : IDbEngine
         }
     }
 
+    /// <summary>
+    ///     Asynchronously disposes the database engine and releases resources.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
@@ -320,8 +393,8 @@ public class DbEngine : IDbEngine
         _initGate.Dispose();
         var snapshot = _levels.SnapshotLevels();
         foreach (var lvl in snapshot)
-            foreach (var f in lvl)
-                f.Reader.Dispose();
+        foreach (var f in lvl)
+            f.Reader.Dispose();
 
         try
         {
@@ -332,6 +405,11 @@ public class DbEngine : IDbEngine
         }
     }
 
+    /// <summary>
+    ///     Triggers manual compaction scheduling and lets the background worker process passes until no immediate candidates
+    ///     remain.
+    /// </summary>
+    /// <param name="ct">A cancellation token.</param>
     public async ValueTask CompactAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
@@ -351,6 +429,12 @@ public class DbEngine : IDbEngine
         // scheduling performed; background worker will process enqueued tasks
     }
 
+    /// <summary>
+    ///     Creates a full backup archive (tar.gz) containing SST and WAL files plus a manifest.
+    /// </summary>
+    /// <param name="destinationPath">The destination path for the backup archive.</param>
+    /// <param name="options">Backup options.</param>
+    /// <param name="ct">A cancellation token.</param>
     public async ValueTask BackupAsync(
         string destinationPath, BackupOptions? options = null,
         CancellationToken ct = default)
@@ -358,9 +442,16 @@ public class DbEngine : IDbEngine
         options ??= new BackupOptions();
         await EnsureInitializedAsync(ct);
 
-        await _backupManager.BackupAsync(destinationPath, options, _commitGate, FlushMemTableAsync, ct).ConfigureAwait(false);
+        await _backupManager.BackupAsync(destinationPath, options, _commitGate, FlushMemTableAsync, ct)
+            .ConfigureAwait(false);
     }
 
+    /// <summary>
+    ///     Restores the database from a full backup archive.
+    /// </summary>
+    /// <param name="archivePath">The path to the backup archive.</param>
+    /// <param name="options">Restore options.</param>
+    /// <param name="ct">A cancellation token.</param>
     public async ValueTask RestoreAsync(
         string archivePath, RestoreOptions? options = null,
         CancellationToken ct = default)
@@ -373,6 +464,11 @@ public class DbEngine : IDbEngine
         await _backupManager.RestoreAsync(archivePath, options, _options.DatabasePath, ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    ///     Atomically allocates the next sequence number for versioning.
+    /// </summary>
+    /// <param name="seq">A reference to the sequence number.</param>
+    /// <returns>The next sequence value.</returns>
     static ulong NextSeq(ref ulong seq)
     {
         ulong current, next;
@@ -606,8 +702,8 @@ public class DbEngine : IDbEngine
     }
 
     internal async ValueTask CommitTransactionAsync(
-         Transaction txn, IReadOnlyList<Mutation> staged,
-         CancellationToken ct)
+        Transaction txn, IReadOnlyList<Mutation> staged,
+        CancellationToken ct)
     {
         await _txnManager.CommitTransactionAsync(txn, staged, ct).ConfigureAwait(false);
     }
@@ -647,7 +743,8 @@ public class DbEngine : IDbEngine
                     entry = DbEntry.Put(m.Key, m.Value, seq);
                     break;
                 case MutationOp.Delete:
-                    existed = _memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out var knd) && knd == DbEntryKind.Put;
+                    existed = _memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out var knd) &&
+                              knd == DbEntryKind.Put;
                     entry = DbEntry.DeleteKey(m.Key, seq);
                     break;
                 case MutationOp.DeleteRange:
@@ -665,7 +762,8 @@ public class DbEngine : IDbEngine
                 case MutationOp.Put:
                 case MutationOp.Insert: _memTableManager.MemTable.Put(m.Key.Span, m.Value.Span, seq); break;
                 case MutationOp.Delete: _memTableManager.MemTable.PutDeleteTombstone(m.Key.Span, seq); break;
-                case MutationOp.DeleteRange: _memTableManager.MemTable.PutRangeTombstone(m.Key.Span, m.RangeEnd.Span, seq); break;
+                case MutationOp.DeleteRange:
+                    _memTableManager.MemTable.PutRangeTombstone(m.Key.Span, m.RangeEnd.Span, seq); break;
                 default:
                     throw new GravelInvalidOperationException("Unknown mutation op");
             }
