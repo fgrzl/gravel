@@ -7,6 +7,7 @@ public interface ISstWriter : IAsyncInitializable, IAsyncDisposable
     ///     Caller must ensure entries are ordered by key asc, then by desired precedence (newest first per key).
     /// </summary>
     ValueTask WriteAsync(IAsyncEnumerable<DbEntry> entries, CancellationToken ct = default);
+    ValueTask WriteAsync(byte[] block);
 
     /// <summary>
     ///     Flush any buffered data (idempotent).
