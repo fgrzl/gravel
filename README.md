@@ -36,7 +36,6 @@ Look in `src/Gravel` for the concrete implementations. Notable components:
 - ⚙️ Compaction & background workers
   - Merge SSTables, apply tombstones/range deletes, produce compacted files; cancellable and observable worker tasks.
 
----
 
 ## ✨ Features
 
@@ -56,7 +55,6 @@ Look in `src/Gravel` for the concrete implementations. Notable components:
 - ⚡ Performance-minded design
   - `Span<T>` / `Memory<T>` usage, `ArrayPool<byte>` pooling, and careful block layouts for cache efficiency.
 
----
 
 ## 🧾 API example (conceptual)
 
@@ -85,13 +83,3 @@ batch.Put(k1, v1);
 batch.Delete(k2);
 db.ApplyBatch(batch); // durable and atomic
 ```
-
-## 📁 Project layout
-
-- `src/Gravel` — core engine and implementation (memtable, writers, compaction, SSTable formats, block builders)
-- 🧪 `benchmark/Gravel.Benchmarks` — microbenchmarks (BenchmarkDotNet)
-- ✅ `test/Gravel.Tests` — unit tests
-
----
-
-If you want the README to show concrete API signatures taken directly from the codebase, I can extract them from `src/Gravel` and update the examples to reflect the real public surface (sync or async).
