@@ -42,7 +42,14 @@ jobs:
       - name: Test
         run: dotnet test -c Release --no-build --no-restore --verbosity minimal
 
-      - name: Workflow Cleanup
-        uses: fgrzl/actions/workflow-cleanup@v0.0.5
-        with:
-            days_old: 1
+  cleanup:
+     runs-on: ubuntu-latest
+
+     steps:
+       - name: Checkout
+         uses: actions/checkout@v5
+
+       - name: Workflow Cleanup
+         uses: fgrzl/actions/workflow-cleanup@v0.0.5
+         with:
+            days_old: 2
