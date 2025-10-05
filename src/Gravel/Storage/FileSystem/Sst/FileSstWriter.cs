@@ -1,4 +1,5 @@
-﻿using System.Buffers.Binary;
+﻿using System.Buffers;
+using System.Buffers.Binary;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Sst;
 using Gravel.Compression.Default;
@@ -6,11 +7,10 @@ using Gravel.Internals;
 using Gravel.Logging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Buffers;
 
 namespace Gravel.Storage.FileSystem.Sst;
 
-public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
+public sealed class FileSstWriter : ISstWriter
 {
     const ulong RocksMagic = 0xDB4775248B80FB57UL;
     readonly IBlockCompressor _compressor;
@@ -31,11 +31,11 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
     readonly string _tmpPath;
     int _entryCount;
 
-    byte[] _lastKey = [];
+    readonly byte[] _lastKey = [];
 
     // New pooled last key buffer and length
-    byte[]? _lastKeyBuf = null;
-    int _lastKeyLen = 0;
+    byte[]? _lastKeyBuf;
+    int _lastKeyLen;
 
     public FileSstWriter(
         string path,
@@ -121,6 +121,7 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
                     ArrayPool<byte>.Shared.Return(_lastKeyBuf);
                     _lastKeyBuf = ArrayPool<byte>.Shared.Rent(Math.Max(needed, _lastKeyBuf.Length * 2));
                 }
+
                 ikeySpan.CopyTo(_lastKeyBuf.AsSpan(0, needed));
                 _lastKeyLen = needed;
 
@@ -216,15 +217,6 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
         return _initTask.IsCompletedSuccessfully ? ValueTask.CompletedTask : new ValueTask(_initTask);
     }
 
-    static byte[] MakeInternalKey(ReadOnlySpan<byte> userKey, ulong seq, byte type)
-    {
-        var buf = new byte[userKey.Length + 8];
-        userKey.CopyTo(buf);
-        var trailer = seq << 8 | type;
-        BinaryPrimitives.WriteUInt64LittleEndian(buf.AsSpan(userKey.Length, 8), trailer);
-        return buf;
-    }
-
     async ValueTask FlushDataBlockAsync(CancellationToken ct)
     {
         if (_data.CurrentSize == 0) return;
@@ -237,7 +229,7 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
 
             byte[]? compArr = null;
             int compLen;
-            bool rentedComp = false;
+            var rentedComp = false;
 
             if (_compressor.TryCompress(raw, Span<byte>.Empty, out _))
             {
