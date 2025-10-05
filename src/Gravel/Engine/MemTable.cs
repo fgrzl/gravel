@@ -90,7 +90,7 @@ public sealed class MemTable
                     // ensure that for delete-key we clear any previous value bytes
                     if (kind == DbEntryKind.DeleteKey)
                     {
-                        x.Entry.Value = Array.Empty<byte>();
+                        x.Entry.Value = [];
                         x.Entry.ValueLen = 0;
                     }
                     else

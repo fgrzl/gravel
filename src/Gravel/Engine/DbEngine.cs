@@ -451,7 +451,7 @@ class DbEngine : IDbEngine
             // Add WAL files (if requested)
             if (options.IncludeWalSegments)
             {
-                var walFiles = Directory.Exists(_walDir) ? Directory.GetFiles(_walDir) : Array.Empty<string>();
+                var walFiles = Directory.Exists(_walDir) ? Directory.GetFiles(_walDir) : [];
                 foreach (var wf in walFiles)
                 {
                     ct.ThrowIfCancellationRequested();

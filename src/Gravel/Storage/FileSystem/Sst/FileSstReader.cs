@@ -22,7 +22,7 @@ public sealed class FileSstReader : ISstReader
     const ulong RocksMagic = 0xDB4775248B80FB57UL;
 
     readonly ICompressorFactory _compressorFactory;
-    readonly List<(byte[] key, BlockHandle handle)> _indexEntries = new();
+    readonly List<(byte[] key, BlockHandle handle)> _indexEntries = [];
     readonly BlockHandle _indexHandle;
 
     readonly Task _initTask;
@@ -32,7 +32,7 @@ public sealed class FileSstReader : ISstReader
     readonly Dictionary<string, BlockHandle> _metaHandles = new(StringComparer.Ordinal);
     readonly MemoryMappedFile _mmf;
     readonly string _path;
-    readonly List<(byte[] Start, byte[] End, ulong Seq)> _rangeDeletes = new();
+    readonly List<(byte[] Start, byte[] End, ulong Seq)> _rangeDeletes = [];
     readonly MemoryMappedViewStream _stream;
     FullFilter? _filter;
 
@@ -107,11 +107,32 @@ public sealed class FileSstReader : ISstReader
         if (_filter != null && !_filter.MightContain(key.Span))
             return null;
 
+        int found = FindIndexEntry(key.Span);
+        if (found >= 0)
+        {
+            var handle = _indexEntries[found].handle;
+            var block = await ReadBlockAsync(handle).ConfigureAwait(false);
+            var entry = FindEntryInBlock(block, key.Span);
+            if (entry != null)
+            {
+                if (IsMaskedByRange(key.Span, entry.Value.Sequence)) return null;
+                return entry;
+            }
+        }
+
+        if (IsMaskedByRange(key.Span, ulong.MaxValue))
+            return DbEntry.DeleteKey(key.ToArray(), ulong.MaxValue);
+
+        return null;
+    }
+
+    int FindIndexEntry(ReadOnlySpan<byte> key)
+    {
         int lo = 0, hi = _indexEntries.Count - 1, found = -1;
         while (lo <= hi)
         {
             var mid = lo + hi >> 1;
-            var cmp = ByteComparer.Compare(key.Span, _indexEntries[mid].key);
+            var cmp = ByteComparer.Compare(key, _indexEntries[mid].key);
             if (cmp <= 0)
             {
                 found = mid;
@@ -119,27 +140,19 @@ public sealed class FileSstReader : ISstReader
             }
             else lo = mid + 1;
         }
+        return found;
+    }
 
-        if (found >= 0)
+    DbEntry? FindEntryInBlock(byte[] block, ReadOnlySpan<byte> key)
+    {
+        foreach (var e in ParseDataBlockOwned(block))
         {
-            var handle = _indexEntries[found].handle;
-            var block = await ReadBlockAsync(handle).ConfigureAwait(false);
-            foreach (var e in ParseDataBlockOwned(block))
-            {
-                var cmp = ByteComparer.Compare(e.Key.Span, key.Span);
-                if (cmp == 0)
-                {
-                    if (IsMaskedByRange(key.Span, e.Sequence)) return null;
-                    return e;
-                }
-
-                if (cmp > 0) break;
-            }
+            var cmp = ByteComparer.Compare(e.Key.Span, key);
+            if (cmp == 0)
+                return e;
+            if (cmp > 0)
+                break;
         }
-
-        if (IsMaskedByRange(key.Span, ulong.MaxValue))
-            return DbEntry.DeleteKey(key.ToArray(), ulong.MaxValue);
-
         return null;
     }
 
