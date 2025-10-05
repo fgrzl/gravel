@@ -19,5 +19,6 @@ obj/
 
 # Logs
 *.log
-/TestResults
+**/TestResults
 **/BenchmarkDotNet.Artifacts/*
+

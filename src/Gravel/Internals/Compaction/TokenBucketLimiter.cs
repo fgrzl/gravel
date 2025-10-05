@@ -15,8 +15,8 @@ public sealed class TokenBucketLimiter
 
     public TokenBucketLimiter(double bytesPerSecond, double burstBytes)
     {
-        if (bytesPerSecond <= 0) throw new ArgumentOutOfRangeException(nameof(bytesPerSecond));
-        if (burstBytes <= 0) throw new ArgumentOutOfRangeException(nameof(burstBytes));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(bytesPerSecond, 0.0, nameof(bytesPerSecond));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(burstBytes, 0.0, nameof(burstBytes));
         _bytesPerSecond = bytesPerSecond;
         _burstBytes = burstBytes;
         _tokens = burstBytes;
@@ -128,8 +128,8 @@ public sealed class TokenBucketLimiter
 
     public void UpdateRate(double bytesPerSecond, double burstBytes)
     {
-        if (bytesPerSecond <= 0) throw new ArgumentOutOfRangeException(nameof(bytesPerSecond));
-        if (burstBytes <= 0) throw new ArgumentOutOfRangeException(nameof(burstBytes));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(bytesPerSecond, 0.0, nameof(bytesPerSecond));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(burstBytes, 0.0, nameof(burstBytes));
         lock (_lock)
         {
             Refill();

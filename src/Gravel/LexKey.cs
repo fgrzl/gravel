@@ -19,7 +19,7 @@ public readonly struct LexKey(byte[] bytes)
 
     public string ToHexString()
     {
-        return BitConverter.ToString(_bytes).Replace("-", "").ToLowerInvariant();
+        return _bytes.Length == 0 ? string.Empty : Convert.ToHexString(_bytes).ToLowerInvariant();
     }
 
     public static LexKey FromHexString(string hex)

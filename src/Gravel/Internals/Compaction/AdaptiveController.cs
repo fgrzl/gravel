@@ -14,7 +14,8 @@ public sealed class AdaptiveController : IDisposable
 
     public AdaptiveController(CompactionWorker worker, double minRate, double maxRate, TimeSpan? interval = null)
     {
-        _worker = worker ?? throw new ArgumentNullException(nameof(worker));
+        ArgumentNullException.ThrowIfNull(worker, nameof(worker));
+        _worker = worker;
         _minRate = Math.Max(1, minRate);
         _maxRate = Math.Max(_minRate, maxRate);
         _interval = interval ?? TimeSpan.FromSeconds(1);

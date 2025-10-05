@@ -237,7 +237,8 @@ public static class SnappyCodec
 
         public SnappyStream(Stream stream, CompressionMode mode, bool leaveOpen = false)
         {
-            _baseStream = stream ?? throw new ArgumentNullException(nameof(stream));
+            ArgumentNullException.ThrowIfNull(stream, nameof(stream));
+            _baseStream = stream;
             _mode = mode;
             _leaveOpen = leaveOpen;
 
@@ -280,7 +281,7 @@ public static class SnappyCodec
             if (_disposed) throw new ObjectDisposedException(nameof(SnappyStream));
             if (_mode != CompressionMode.Decompress)
                 throw new NotSupportedException("Stream not opened for decompression.");
-            if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+            ArgumentNullException.ThrowIfNull(buffer, nameof(buffer));
             if (offset < 0 || count < 0 || offset + count > buffer.Length) throw new ArgumentOutOfRangeException();
 
             EnsureDecompressed();
@@ -296,7 +297,7 @@ public static class SnappyCodec
             if (_disposed) throw new ObjectDisposedException(nameof(SnappyStream));
             if (_mode != CompressionMode.Compress)
                 throw new NotSupportedException("Stream not opened for compression.");
-            if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+            ArgumentNullException.ThrowIfNull(buffer, nameof(buffer));
             if (offset < 0 || count < 0 || offset + count > buffer.Length) throw new ArgumentOutOfRangeException();
 
             _writeBuffer!.Write(buffer, offset, count);

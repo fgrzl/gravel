@@ -6,6 +6,7 @@ using Gravel.Internals;
 using Gravel.Logging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Buffers;
 
 namespace Gravel.Storage.FileSystem.Sst;
 
@@ -65,6 +66,7 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
     {
         await foreach (var e in entries.WithCancellation(ct).ConfigureAwait(false))
         {
+            // On-disk type encoding: Put=1, DeleteKey=0, DeleteRange=2
             byte type = e.Kind switch
             {
                 DbEntryKind.Put => 0x1,
@@ -173,15 +175,36 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
         if (_data.CurrentSize == 0) return;
         var raw = _data.Finish();
         var comp = _compressor.Compress(raw);
-        Span<byte> crcInput = stackalloc byte[comp.Length + 1];
-        comp.CopyTo(crcInput);
-        crcInput[^1] = (byte)_compressor.Kind;
-        var crc = Crc32C.Compute(crcInput);
+
+        // compute crc over payload + compType without using large stackalloc
+        uint crc;
+        var compType = (byte)_compressor.Kind;
+        if (comp.Length <= 1024)
+        {
+            Span<byte> crcInput = stackalloc byte[comp.Length + 1];
+            comp.CopyTo(crcInput);
+            crcInput[^1] = compType;
+            crc = Crc32C.Compute(crcInput);
+        }
+        else
+        {
+            var pooled = ArrayPool<byte>.Shared.Rent(comp.Length + 1);
+            try
+            {
+                comp.CopyTo(pooled.AsSpan(0, comp.Length));
+                pooled[comp.Length] = compType;
+                crc = Crc32C.Compute(pooled.AsSpan(0, comp.Length + 1));
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(pooled);
+            }
+        }
 
         var offset = _stream.Position;
         await _stream.WriteAsync(comp, ct).ConfigureAwait(false);
         Span<byte> trailer = stackalloc byte[5];
-        trailer[0] = (byte)_compressor.Kind;
+        trailer[0] = compType;
         BinaryPrimitives.WriteUInt32LittleEndian(trailer[1..], crc);
         _stream.Write(trailer);
 
@@ -194,14 +217,35 @@ public sealed class FileSstWriter : ISstWriter, IAsyncDisposable
     {
         var payload = comp == CompressionKind.None ? raw : _compressor.Compress(raw);
         var offset = _stream.Position;
-        Span<byte> crcInput = stackalloc byte[payload.Length + 1];
-        payload.CopyTo(crcInput);
-        crcInput[^1] = (byte)comp;
-        var crc = Crc32C.Compute(crcInput);
+
+        // compute crc using pooled buffer for large payloads
+        uint crc;
+        var compType = (byte)comp;
+        if (payload.Length <= 1024)
+        {
+            Span<byte> crcInput = stackalloc byte[payload.Length + 1];
+            payload.CopyTo(crcInput);
+            crcInput[^1] = compType;
+            crc = Crc32C.Compute(crcInput);
+        }
+        else
+        {
+            var pooled = ArrayPool<byte>.Shared.Rent(payload.Length + 1);
+            try
+            {
+                payload.CopyTo(pooled.AsSpan(0, payload.Length));
+                pooled[payload.Length] = compType;
+                crc = Crc32C.Compute(pooled.AsSpan(0, payload.Length + 1));
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(pooled);
+            }
+        }
 
         await _stream.WriteAsync(payload, ct).ConfigureAwait(false);
         Span<byte> trailer = stackalloc byte[5];
-        trailer[0] = (byte)comp;
+        trailer[0] = compType;
         BinaryPrimitives.WriteUInt32LittleEndian(trailer[1..], crc);
         _stream.Write(trailer);
 

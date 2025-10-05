@@ -24,7 +24,7 @@ public static class Varint
 
     public static uint Read32(byte[] buf, ref int pos)
     {
-        if (buf == null) throw new ArgumentNullException(nameof(buf));
+        ArgumentNullException.ThrowIfNull(buf, nameof(buf));
         uint result = 0;
         var shift = 0;
 
