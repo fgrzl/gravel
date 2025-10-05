@@ -132,11 +132,21 @@ public sealed class FileSstReader : ISstReader
         foreach (var (_, handle) in _indexEntries)
         {
             var block = await ReadBlockAsync(handle).ConfigureAwait(false);
-            foreach (var e in ParseDataBlockOwned(block))
+
+            // Iterate entries using DbEntryLight to avoid per-entry allocations.
+            var restartsCount = BinaryPrimitives.ReadInt32LittleEndian(block.AsSpan(block.Length - 4));
+            var restartsOff = block.Length - 4 - restartsCount * 4;
+            var pos = 0;
+
+            using var scope = Buf.AsyncRent(256);
+            var keyBuf = scope.Buffer;
+            var keyLen = 0;
+
+            while (TryReadNextEntryLight(block, restartsOff, ref pos, keyBuf, ref keyLen, out var light))
             {
                 ct.ThrowIfCancellationRequested();
-                if (!IsMaskedByRange(e.Key.Span, e.Sequence))
-                    yield return e;
+                if (!IsMaskedByRange(light.Key, light.Sequence))
+                    yield return light.ToOwned();
             }
         }
     }
@@ -161,11 +171,20 @@ public sealed class FileSstReader : ISstReader
 
     DbEntry? FindEntryInBlock(byte[] block, ReadOnlySpan<byte> key)
     {
-        foreach (var e in ParseDataBlockOwned(block))
+        // Iterate using light entries and materialize only on match
+        var restartsCount = BinaryPrimitives.ReadInt32LittleEndian(block.AsSpan(block.Length - 4));
+        var restartsOff = block.Length - 4 - restartsCount * 4;
+        var pos = 0;
+
+        using var scope = Buf.AsyncRent(256);
+        var keyBuf = scope.Buffer;
+        var keyLen = 0;
+
+        while (TryReadNextEntryLight(block, restartsOff, ref pos, keyBuf, ref keyLen, out var light))
         {
-            var cmp = ByteComparer.Compare(e.Key.Span, key);
+            var cmp = ByteComparer.Compare(light.Key, key);
             if (cmp == 0)
-                return e;
+                return light.ToOwned();
             if (cmp > 0)
                 break;
         }
@@ -318,30 +337,17 @@ public sealed class FileSstReader : ISstReader
     }
 
     // ---------------------------------------------------------------------
-    // Data block parser (materializes owned DbEntry instances)
+    // Data block parser (lightweight with DbEntryLight, materialize on demand)
     // ---------------------------------------------------------------------
 
-    static IEnumerable<DbEntry> ParseDataBlockOwned(byte[] raw)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static bool TryReadNextEntryLight(byte[] raw, int restartsOff, ref int pos, byte[] keyBuf, ref int keyLen, out DbEntryLight entry)
     {
-        var restartsCount = BinaryPrimitives.ReadInt32LittleEndian(raw.AsSpan(raw.Length - 4));
-        var restartsOff = raw.Length - 4 - restartsCount * 4;
-        var pos = 0;
+        // default init
+        entry = default;
+        if (pos >= restartsOff)
+            return false;
 
-        using var scope = Buf.AsyncRent(256);
-        var keyBuf = scope.Buffer;
-        var keyLen = 0;
-
-        while (pos < restartsOff)
-        {
-            ParseEntry(raw, ref pos, keyBuf, ref keyLen, out var entry);
-            if (entry != null)
-                yield return entry.Value;
-        }
-    }
-
-    static void ParseEntry(byte[] raw, ref int pos, byte[] keyBuf, ref int keyLen, out DbEntry? entry)
-    {
-        entry = null;
         var shared = (int)VarInt.Read32(raw, ref pos);
         var unshared = (int)VarInt.Read32(raw, ref pos);
         var vlen = (int)VarInt.Read32(raw, ref pos);
@@ -357,11 +363,13 @@ public sealed class FileSstReader : ISstReader
         var valueSpan = raw.AsSpan(pos, vlen);
         pos += vlen;
 
-        if (keyLen < 8) return;
+        if (keyLen < 8)
+            return true; // skip malformed entry silently
+
         var trailer = BinaryPrimitives.ReadUInt64LittleEndian(keyBuf.AsSpan(keyLen - 8, 8));
         var seq = trailer >> 8;
         var rawType = (byte)(trailer & 0xFF);
-        var type = rawType switch
+        var kind = rawType switch
         {
             1 => DbEntryKind.Put,
             0 => DbEntryKind.DeleteKey,
@@ -370,17 +378,11 @@ public sealed class FileSstReader : ISstReader
         };
         var userLen = keyLen - 8;
 
-        var keyArr = new byte[userLen];
-        keyBuf.AsSpan(0, userLen).CopyTo(keyArr);
-        var valArr = valueSpan.ToArray();
+        var keySpan = keyBuf.AsSpan(0, userLen);
+        var valSpan = kind == DbEntryKind.Put ? valueSpan : (kind == DbEntryKind.DeleteRange ? valueSpan : ReadOnlySpan<byte>.Empty);
 
-        entry = type switch
-        {
-            DbEntryKind.Put => DbEntry.Put(keyArr, valArr, seq),
-            DbEntryKind.DeleteKey => DbEntry.DeleteKey(keyArr, seq),
-            DbEntryKind.DeleteRange => DbEntry.DeleteRange(keyArr, valArr, seq),
-            _ => null
-        };
+        entry = new DbEntryLight(keySpan, valSpan, seq, kind);
+        return true;
     }
 
     // ---------------------------------------------------------------------
