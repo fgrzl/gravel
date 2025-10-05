@@ -86,7 +86,7 @@ public interface IDbEngine : IAsyncDisposable, IDisposable
     ///     Begins a new transaction.
     /// </summary>
     /// <param name="ct">A cancellation token.</param>
-    /// <returns>An <see cref="IGravelTransaction"/> instance.</returns>
+    /// <returns>An <see cref="IGravelTransaction" /> instance.</returns>
     ValueTask<IGravelTransaction> BeginTransactionAsync(CancellationToken ct = default);
 
     /// <summary>

@@ -368,8 +368,8 @@ public class DbEngine : IDbEngine
         _initGate.Dispose();
         var snapshot = _levels.SnapshotLevels();
         foreach (var lvl in snapshot)
-            foreach (var f in lvl)
-                f.Reader.Dispose();
+        foreach (var f in lvl)
+            f.Reader.Dispose();
 
         try
         {
@@ -393,8 +393,8 @@ public class DbEngine : IDbEngine
         _initGate.Dispose();
         var snapshot = _levels.SnapshotLevels();
         foreach (var lvl in snapshot)
-            foreach (var f in lvl)
-                f.Reader.Dispose();
+        foreach (var f in lvl)
+            f.Reader.Dispose();
 
         try
         {

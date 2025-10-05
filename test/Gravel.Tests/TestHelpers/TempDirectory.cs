@@ -12,7 +12,7 @@ public sealed class TempDirectory : IDisposable
 {
     public TempDirectory(string prefix)
     {
-        if (prefix == null) prefix = "tmp-";
+        prefix ??= "tmp-";
         Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), prefix + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path);
     }

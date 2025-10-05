@@ -20,7 +20,7 @@ public interface ISstFactory
     /// </summary>
     /// <param name="path">The path to the SST file.</param>
     /// <param name="ct">A cancellation token.</param>
-    /// <returns>A task representing the asynchronous creation of an <see cref="ISstReader"/>.</returns>
+    /// <returns>A task representing the asynchronous creation of an <see cref="ISstReader" />.</returns>
     ValueTask<ISstReader> CreateReaderAsync(string path, CancellationToken ct = default);
 
     /// <summary>
@@ -31,6 +31,6 @@ public interface ISstFactory
     /// <param name="path">The path to the SST file.</param>
     /// <param name="expectedEntries">The expected number of entries to write.</param>
     /// <param name="ct">A cancellation token.</param>
-    /// <returns>A task representing the asynchronous creation of an <see cref="ISstWriter"/>.</returns>
+    /// <returns>A task representing the asynchronous creation of an <see cref="ISstWriter" />.</returns>
     ValueTask<ISstWriter> CreateWriterAsync(string path, int expectedEntries, CancellationToken ct = default);
 }

@@ -5,7 +5,7 @@ using Gravel.Abstractions.Storage.Sst;
 namespace Gravel.Storage.InMemory.Sst;
 
 /// <summary>
-///     In-memory SST reader implementation for reading entries from an <see cref="InMemorySst"/> instance.
+///     In-memory SST reader implementation for reading entries from an <see cref="InMemorySst" /> instance.
 /// </summary>
 /// <param name="sst">The in-memory SST to read from.</param>
 public sealed class InMemorySstReader(InMemorySst sst) : ISstReader
@@ -69,7 +69,7 @@ public sealed class InMemorySstReader(InMemorySst sst) : ISstReader
     ///     Asynchronously initializes the reader. No-op for in-memory implementation.
     /// </summary>
     /// <param name="ct">A cancellation token.</param>
-    /// <returns>A completed <see cref="ValueTask"/>.</returns>
+    /// <returns>A completed <see cref="ValueTask" />.</returns>
     public ValueTask InitializeAsync(CancellationToken ct = default)
     {
         return ValueTask.CompletedTask;

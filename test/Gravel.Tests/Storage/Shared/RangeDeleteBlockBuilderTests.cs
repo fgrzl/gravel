@@ -1,9 +1,10 @@
 using System;
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using FluentAssertions;
-using Gravel.Storage.Shared;
+using Gravel.Internals;
 using Xunit;
 
 namespace Gravel.Storage.Shared.Tests;
@@ -12,16 +13,16 @@ public class RangeDeleteBlockBuilderTests
 {
     static (byte[] Start, byte[] End, ulong Seq)[] Decode(byte[] buf)
     {
-        var list = new System.Collections.Generic.List<(byte[] Start, byte[] End, ulong Seq)>();
+        var list = new List<(byte[] Start, byte[] End, ulong Seq)>();
         var pos = 0;
         while (pos < buf.Length)
         {
-            var sLen = (int)Gravel.Internals.VarInt.Read32(buf, ref pos);
+            var sLen = (int)VarInt.Read32(buf, ref pos);
             var s = new byte[sLen];
             Array.Copy(buf, pos, s, 0, sLen);
             pos += sLen;
 
-            var eLen = (int)Gravel.Internals.VarInt.Read32(buf, ref pos);
+            var eLen = (int)VarInt.Read32(buf, ref pos);
             var e = new byte[eLen];
             Array.Copy(buf, pos, e, 0, eLen);
             pos += eLen;
@@ -31,6 +32,7 @@ public class RangeDeleteBlockBuilderTests
 
             list.Add((s, e, seq));
         }
+
         return list.ToArray();
     }
 

@@ -1,10 +1,8 @@
 using System;
+using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using FluentAssertions;
-using Gravel.Storage.Shared;
 using Xunit;
 
 namespace Gravel.Storage.Shared.Tests;
@@ -26,7 +24,7 @@ public class DataBlockBuilderTests
     public void should_emit_restart_array_and_count_with_valid_offsets()
     {
         // Arrange
-        var b = new DataBlockBuilder(restartInterval: 2);
+        var b = new DataBlockBuilder(2);
         var data = new[] { ("aa", "1"), ("ab", "2"), ("ac", "3"), ("ba", "4") };
         foreach (var (k, v) in data)
             b.Add(Encoding.UTF8.GetBytes(k), Encoding.UTF8.GetBytes(v));
@@ -48,7 +46,7 @@ public class DataBlockBuilderTests
         }
         finally
         {
-            System.Buffers.ArrayPool<byte>.Shared.Return(pooled.Buffer);
+            ArrayPool<byte>.Shared.Return(pooled.Buffer);
         }
     }
 
@@ -56,7 +54,7 @@ public class DataBlockBuilderTests
     public void should_match_current_size_to_finish_length()
     {
         // Arrange
-        var b = new DataBlockBuilder(restartInterval: 4);
+        var b = new DataBlockBuilder(4);
         b.Add("key1"u8.ToArray(), "v1"u8.ToArray());
         b.Add("key2"u8.ToArray(), "v2"u8.ToArray());
 
@@ -69,7 +67,7 @@ public class DataBlockBuilderTests
         }
         finally
         {
-            System.Buffers.ArrayPool<byte>.Shared.Return(pooled.Buffer);
+            ArrayPool<byte>.Shared.Return(pooled.Buffer);
         }
     }
 }

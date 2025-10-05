@@ -10,9 +10,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".items", ".items", "{02EA68
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
 		.gitignore = .gitignore
-		copilot_instructions.md = copilot_instructions.md
 		Directory.Build.props = Directory.Build.props
 		GitVersion.yml = GitVersion.yml
+		GUIDANCE.md = GUIDANCE.md
+		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{69AE3160-DC30-4892-A346-FF57E2108801}"

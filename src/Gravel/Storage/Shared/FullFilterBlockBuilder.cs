@@ -4,7 +4,7 @@ using Gravel.Internals.Filters;
 namespace Gravel.Storage.Shared;
 
 /// <summary>
-/// Builds a full Bloom filter block for an SST file.
+///     Builds a full Bloom filter block for an SST file.
 /// </summary>
 /// <param name="expectedEntries">Expected number of entries to size the filter.</param>
 public sealed class FullFilterBlockBuilder(int expectedEntries)
@@ -12,7 +12,7 @@ public sealed class FullFilterBlockBuilder(int expectedEntries)
     readonly BloomFilter _bloom = BloomFilter.Create(expectedEntries);
 
     /// <summary>
-    /// Adds a key to the Bloom filter.
+    ///     Adds a key to the Bloom filter.
     /// </summary>
     /// <param name="key">The user key bytes.</param>
     public void AddKey(ReadOnlySpan<byte> key)
@@ -21,7 +21,7 @@ public sealed class FullFilterBlockBuilder(int expectedEntries)
     }
 
     /// <summary>
-    /// Finalizes the filter and returns its serialized representation.
+    ///     Finalizes the filter and returns its serialized representation.
     /// </summary>
     /// <returns>Serialized filter bytes: bits, hash function count, and bit array length followed by data.</returns>
     public byte[] Finish()

@@ -5,7 +5,7 @@ using Gravel.Internals;
 namespace Gravel.Storage.Shared;
 
 /// <summary>
-/// Builds SST data blocks using prefix compression with restart points.
+///     Builds SST data blocks using prefix compression with restart points.
 /// </summary>
 /// <param name="restartInterval">Number of entries between restart points (minimum 1).</param>
 public sealed class DataBlockBuilder(int restartInterval = 16)
@@ -17,12 +17,12 @@ public sealed class DataBlockBuilder(int restartInterval = 16)
     byte[] _prevKey = [];
 
     /// <summary>
-    /// Gets the current serialized size of the block including restart array and count.
+    ///     Gets the current serialized size of the block including restart array and count.
     /// </summary>
     public int CurrentSize => (int)_buf.Length + _restarts.Count * 4 + 4;
 
     /// <summary>
-    /// Adds an entry to the block using shared-prefix compression relative to the previous key.
+    ///     Adds an entry to the block using shared-prefix compression relative to the previous key.
     /// </summary>
     /// <param name="key">The internal key to add (includes sequence/type trailer if applicable).</param>
     /// <param name="value">The associated value bytes.</param>
@@ -62,7 +62,7 @@ public sealed class DataBlockBuilder(int restartInterval = 16)
     }
 
     /// <summary>
-    /// Finalizes the block and returns a newly allocated byte array.
+    ///     Finalizes the block and returns a newly allocated byte array.
     /// </summary>
     /// <returns>The serialized block bytes.</returns>
     public byte[] Finish()
@@ -90,9 +90,9 @@ public sealed class DataBlockBuilder(int restartInterval = 16)
     }
 
     /// <summary>
-    /// Finalizes the block into a pooled buffer to avoid an allocation. Caller must return the buffer.
+    ///     Finalizes the block into a pooled buffer to avoid an allocation. Caller must return the buffer.
     /// </summary>
-    /// <returns>A <see cref="PooledBuffer"/> containing the serialized block.</returns>
+    /// <returns>A <see cref="PooledBuffer" /> containing the serialized block.</returns>
     public PooledBuffer FinishPooled()
     {
         var totalLen = (int)_buf.Length + _restarts.Count * 4 + 4;
@@ -125,7 +125,7 @@ public sealed class DataBlockBuilder(int restartInterval = 16)
     }
 
     /// <summary>
-    /// Resets the builder for reuse by clearing buffers and state.
+    ///     Resets the builder for reuse by clearing buffers and state.
     /// </summary>
     public void Reset()
     {
@@ -137,18 +137,19 @@ public sealed class DataBlockBuilder(int restartInterval = 16)
     }
 
     /// <summary>
-    /// Pooled result to avoid allocating the final array. Caller must return the buffer to the pool.
+    ///     Pooled result to avoid allocating the final array. Caller must return the buffer to the pool.
     /// </summary>
     /// <param name="buffer">The rented buffer containing the block bytes.</param>
-    /// <param name="length">The number of valid bytes in <see cref="Buffer"/>.</param>
+    /// <param name="length">The number of valid bytes in <see cref="Buffer" />.</param>
     public struct PooledBuffer(byte[] buffer, int length)
     {
         /// <summary>
-        /// Gets the rented buffer containing the serialized block.
+        ///     Gets the rented buffer containing the serialized block.
         /// </summary>
         public byte[] Buffer { get; } = buffer;
+
         /// <summary>
-        /// Gets the number of valid bytes in <see cref="Buffer"/>.
+        ///     Gets the number of valid bytes in <see cref="Buffer" />.
         /// </summary>
         public int Length { get; } = length;
     }

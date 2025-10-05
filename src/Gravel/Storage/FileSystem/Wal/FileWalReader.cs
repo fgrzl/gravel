@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Gravel.Storage.FileSystem.Wal;
 
 /// <summary>
-/// File-based WAL reader that replays records from segment files on disk.
+///     File-based WAL reader that replays records from segment files on disk.
 /// </summary>
 /// <param name="directory">Directory containing WAL segment files.</param>
 /// <param name="logger">Optional logger.</param>
@@ -20,7 +20,7 @@ public sealed class FileWalReader(string directory, ILogger? logger = null) : IW
     readonly List<string> _segments = [.. Directory.EnumerateFiles(directory, "*.wal").OrderBy(f => f)];
 
     /// <summary>
-    /// Disposes the reader. No resources to release at the moment.
+    ///     Disposes the reader. No resources to release at the moment.
     /// </summary>
     public ValueTask DisposeAsync()
     {
@@ -28,10 +28,10 @@ public sealed class FileWalReader(string directory, ILogger? logger = null) : IW
     }
 
     /// <summary>
-    /// Replays WAL records from the segment files in order.
+    ///     Replays WAL records from the segment files in order.
     /// </summary>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>An async stream of <see cref="WalRecord"/> items.</returns>
+    /// <returns>An async stream of <see cref="WalRecord" /> items.</returns>
     public async IAsyncEnumerable<WalRecord> ReplayAsync([EnumeratorCancellation] CancellationToken ct = default)
     {
         if (_segments.Count == 0)

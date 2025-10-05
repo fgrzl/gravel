@@ -9,6 +9,7 @@ using Gravel.Internals;
 using Gravel.Internals.Filters;
 using Gravel.Logging;
 using Gravel.Storage.Shared;
+using Gravel.Telemetry;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -37,7 +38,7 @@ public sealed class FileSstReader : ISstReader
     FullFilter? _filter;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="FileSstReader"/> class.
+    ///     Initializes a new instance of the <see cref="FileSstReader" /> class.
     /// </summary>
     /// <param name="path">Path to the SST file to open.</param>
     /// <param name="compressorFactory">Factory used to create decompressors for blocks.</param>
@@ -99,6 +100,7 @@ public sealed class FileSstReader : ISstReader
     /// <returns>True if the key may be present; false if definitely not.</returns>
     public ValueTask<bool> MightContainAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default)
     {
+        TelemetrySources.SstReads.Add(1, new KeyValuePair<string, object?>("op", "might_contain"));
         if (!_initTask.IsCompleted)
             return new ValueTask<bool>(_initTask.ContinueWith(t =>
             {
@@ -130,9 +132,10 @@ public sealed class FileSstReader : ISstReader
     /// </summary>
     /// <param name="key">The user key to fetch.</param>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>The matching <see cref="DbEntry"/> or null if not found or masked.</returns>
+    /// <returns>The matching <see cref="DbEntry" /> or null if not found or masked.</returns>
     public async ValueTask<DbEntry?> GetAsync(ReadOnlyMemory<byte> key, CancellationToken ct = default)
     {
+        TelemetrySources.SstReads.Add(1, new KeyValuePair<string, object?>("op", "get"));
         await InitializeAsync(ct).ConfigureAwait(false);
 
         if (_filter != null && !_filter.MightContain(key.Span))
@@ -161,9 +164,10 @@ public sealed class FileSstReader : ISstReader
     ///     Reads all entries in key order, yielding only those not masked by range deletes.
     /// </summary>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>An async sequence of <see cref="DbEntry"/> values.</returns>
+    /// <returns>An async sequence of <see cref="DbEntry" /> values.</returns>
     public async IAsyncEnumerable<DbEntry> ReadAllAsync([EnumeratorCancellation] CancellationToken ct = default)
     {
+        TelemetrySources.SstReads.Add(1, new KeyValuePair<string, object?>("op", "read_all"));
         await InitializeAsync(ct).ConfigureAwait(false);
 
         foreach (var (_, handle) in _indexEntries)
@@ -189,7 +193,7 @@ public sealed class FileSstReader : ISstReader
     }
 
     /// <summary>
-    /// Reads a block from the SST file, decompresses and validates its contents.
+    ///     Reads a block from the SST file, decompresses and validates its contents.
     /// </summary>
     /// <param name="handle">The block handle specifying offset and size.</param>
     /// <returns>The decompressed block as a byte array.</returns>
@@ -218,7 +222,7 @@ public sealed class FileSstReader : ISstReader
     }
 
     /// <summary>
-    /// Validates the CRC32C checksum of a block.
+    ///     Validates the CRC32C checksum of a block.
     /// </summary>
     /// <param name="data">The block data.</param>
     /// <param name="compType">The compression type byte.</param>
@@ -235,7 +239,7 @@ public sealed class FileSstReader : ISstReader
     }
 
     /// <summary>
-    /// Copies an uncompressed block into a new byte array.
+    ///     Copies an uncompressed block into a new byte array.
     /// </summary>
     /// <param name="data">The block data.</param>
     /// <returns>A new byte array containing the block data.</returns>
@@ -250,7 +254,7 @@ public sealed class FileSstReader : ISstReader
     }
 
     /// <summary>
-    /// Decompresses a block using Snappy compression.
+    ///     Decompresses a block using Snappy compression.
     /// </summary>
     /// <param name="data">The compressed block data.</param>
     /// <returns>The decompressed block as a byte array.</returns>
@@ -272,7 +276,7 @@ public sealed class FileSstReader : ISstReader
     }
 
     /// <summary>
-    /// Finds the index entry for a given key using binary search.
+    ///     Finds the index entry for a given key using binary search.
     /// </summary>
     /// <param name="key">The key to search for.</param>
     /// <returns>The index of the entry if found; otherwise, -1.</returns>
@@ -295,12 +299,12 @@ public sealed class FileSstReader : ISstReader
     }
 
     /// <summary>
-    /// Searches for a matching entry in a data block using lightweight parsing.
-    /// Only materializes a <see cref="DbEntry"/> if a match is found.
+    ///     Searches for a matching entry in a data block using lightweight parsing.
+    ///     Only materializes a <see cref="DbEntry" /> if a match is found.
     /// </summary>
     /// <param name="block">The SST data block buffer.</param>
     /// <param name="key">The key to search for.</param>
-    /// <returns>The matching <see cref="DbEntry"/> if found; otherwise, null.</returns>
+    /// <returns>The matching <see cref="DbEntry" /> if found; otherwise, null.</returns>
     DbEntry? FindEntryInBlock(byte[] block, ReadOnlySpan<byte> key)
     {
         // Iterate using light entries and materialize only on match
@@ -356,10 +360,10 @@ public sealed class FileSstReader : ISstReader
     // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Decodes a <see cref="BlockHandle"/> from a span containing varint-encoded offset and size.
+    ///     Decodes a <see cref="BlockHandle" /> from a span containing varint-encoded offset and size.
     /// </summary>
     /// <param name="span">The span containing the encoded block handle.</param>
-    /// <returns>The decoded <see cref="BlockHandle"/>.</returns>
+    /// <returns>The decoded <see cref="BlockHandle" />.</returns>
     static BlockHandle DecodeBlockHandle(ReadOnlySpan<byte> span)
     {
         var off = VarInt.Read64(ref span);
@@ -368,7 +372,7 @@ public sealed class FileSstReader : ISstReader
     }
 
     /// <summary>
-    /// Parses a key-value block from SST metadata or index.
+    ///     Parses a key-value block from SST metadata or index.
     /// </summary>
     /// <param name="raw">The raw block buffer.</param>
     /// <returns>A list of key-value pairs as byte arrays.</returns>
@@ -393,7 +397,7 @@ public sealed class FileSstReader : ISstReader
     }
 
     /// <summary>
-    /// Parses a range delete block from SST metadata.
+    ///     Parses a range delete block from SST metadata.
     /// </summary>
     /// <param name="raw">The raw block buffer.</param>
     /// <returns>A sequence of range tombstones (start, end, sequence).</returns>
@@ -426,18 +430,19 @@ public sealed class FileSstReader : ISstReader
     // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Attempts to parse the next entry in an SST data block as a lightweight <see cref="DbEntryLight"/>.
-    /// This avoids heap allocations by using stack-allocated buffers and spans.
+    ///     Attempts to parse the next entry in an SST data block as a lightweight <see cref="DbEntryLight" />.
+    ///     This avoids heap allocations by using stack-allocated buffers and spans.
     /// </summary>
     /// <param name="raw">The raw SST data block buffer.</param>
     /// <param name="restartsOff">Offset to the restart array (end of entries).</param>
     /// <param name="pos">Current position in the buffer (updated on success).</param>
     /// <param name="keyBuf">Stack-allocated buffer for key reconstruction.</param>
     /// <param name="keyLen">Current key length (updated on success).</param>
-    /// <param name="entry">The parsed <see cref="DbEntryLight"/> if successful.</param>
+    /// <param name="entry">The parsed <see cref="DbEntryLight" /> if successful.</param>
     /// <returns>True if an entry was parsed (maybe malformed); false if end of block.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool TryReadNextEntryLight(byte[] raw, int restartsOff, ref int pos, byte[] keyBuf, ref int keyLen, out DbEntryLight entry)
+    static bool TryReadNextEntryLight(
+        byte[] raw, int restartsOff, ref int pos, byte[] keyBuf, ref int keyLen, out DbEntryLight entry)
     {
         // default init
         entry = default;
@@ -475,7 +480,8 @@ public sealed class FileSstReader : ISstReader
         var userLen = keyLen - 8;
 
         var keySpan = keyBuf.AsSpan(0, userLen);
-        var valSpan = kind == DbEntryKind.Put ? valueSpan : (kind == DbEntryKind.DeleteRange ? valueSpan : ReadOnlySpan<byte>.Empty);
+        var valSpan = kind == DbEntryKind.Put ? valueSpan :
+            kind == DbEntryKind.DeleteRange ? valueSpan : ReadOnlySpan<byte>.Empty;
 
         entry = new DbEntryLight(keySpan, valSpan, seq, kind);
         return true;
@@ -486,7 +492,7 @@ public sealed class FileSstReader : ISstReader
     // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Determines if a key is masked by any range tombstone with a higher sequence number.
+    ///     Determines if a key is masked by any range tombstone with a higher sequence number.
     /// </summary>
     /// <param name="key">The key to check.</param>
     /// <param name="seq">The sequence number to compare against.</param>

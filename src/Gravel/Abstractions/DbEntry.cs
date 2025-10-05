@@ -37,7 +37,7 @@ public readonly record struct DbEntry(
     /// <param name="key">The key to put.</param>
     /// <param name="value">The value to associate.</param>
     /// <param name="seq">The sequence number.</param>
-    /// <returns>A new <see cref="DbEntry"/> instance.</returns>
+    /// <returns>A new <see cref="DbEntry" /> instance.</returns>
     public static DbEntry Put(ReadOnlyMemory<byte> key, ReadOnlyMemory<byte> value, ulong seq)
     {
         return new DbEntry(DbEntryKind.Put, key, value, seq);
@@ -48,7 +48,7 @@ public readonly record struct DbEntry(
     /// </summary>
     /// <param name="key">The key to delete.</param>
     /// <param name="seq">The sequence number.</param>
-    /// <returns>A new <see cref="DbEntry"/> instance.</returns>
+    /// <returns>A new <see cref="DbEntry" /> instance.</returns>
     public static DbEntry DeleteKey(ReadOnlyMemory<byte> key, ulong seq)
     {
         return new DbEntry(DbEntryKind.DeleteKey, key, ReadOnlyMemory<byte>.Empty, seq);
@@ -60,7 +60,7 @@ public readonly record struct DbEntry(
     /// <param name="start">The start key (inclusive).</param>
     /// <param name="end">The end key (exclusive).</param>
     /// <param name="seq">The sequence number.</param>
-    /// <returns>A new <see cref="DbEntry"/> instance.</returns>
+    /// <returns>A new <see cref="DbEntry" /> instance.</returns>
     public static DbEntry DeleteRange(ReadOnlyMemory<byte> start, ReadOnlyMemory<byte> end, ulong seq)
     {
         return new DbEntry(DbEntryKind.DeleteRange, start, end, seq);

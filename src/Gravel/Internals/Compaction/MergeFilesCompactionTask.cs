@@ -28,7 +28,7 @@ public sealed class MergeFilesCompactionTask : ICompactionTask
     Task? _work;
 
     /// <summary>
-    ///     Initializes a new instance of <see cref="MergeFilesCompactionTask"/>.
+    ///     Initializes a new instance of <see cref="MergeFilesCompactionTask" />.
     /// </summary>
     /// <param name="inputs">The input SST files to merge.</param>
     /// <param name="outPath">The output SST file path.</param>

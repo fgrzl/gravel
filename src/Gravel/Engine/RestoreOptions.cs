@@ -9,6 +9,7 @@ public sealed class RestoreOptions
     ///     Gets or sets a value indicating whether to verify checksums during restore.
     /// </summary>
     public bool VerifyChecksums { get; set; } = true;
+
     /// <summary>
     ///     Gets or sets a value indicating whether the engine must be stopped before restore.
     /// </summary>

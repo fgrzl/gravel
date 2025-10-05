@@ -10,14 +10,17 @@ public sealed class SkipList<TKey, TValue>(IComparer<TKey>? comparer = null)
     ///     Maximum level for skip list nodes.
     /// </summary>
     const int MaxLevel = 16;
+
     /// <summary>
     ///     Comparer used for key ordering.
     /// </summary>
     readonly IComparer<TKey> _comparer = comparer ?? Comparer<TKey>.Default;
+
     /// <summary>
     ///     Dummy head node for skip list.
     /// </summary>
     readonly Node _head = new(default!, default!, MaxLevel);
+
     /// <summary>
     ///     Random number generator for level assignment.
     /// </summary>
@@ -182,10 +185,12 @@ public sealed class SkipList<TKey, TValue>(IComparer<TKey>? comparer = null)
         ///     Forward pointers for each level.
         /// </summary>
         public readonly Node?[] Forward = new Node[level];
+
         /// <summary>
         ///     The key stored in this node.
         /// </summary>
         public readonly TKey Key = key;
+
         /// <summary>
         ///     The value stored in this node.
         /// </summary>

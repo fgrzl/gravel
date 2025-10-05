@@ -57,7 +57,7 @@ public sealed class GravelOptions : IOptions<GravelOptions>
     public int MaxConcurrentCompactions { get; set; } = 2;
 
     /// <summary>
-    ///     Gets the current <see cref="GravelOptions"/> instance (IOptions implementation).
+    ///     Gets the current <see cref="GravelOptions" /> instance (IOptions implementation).
     /// </summary>
     public GravelOptions Value => this;
 }

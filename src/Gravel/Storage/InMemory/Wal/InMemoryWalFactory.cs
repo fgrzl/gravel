@@ -13,7 +13,7 @@ public sealed class InMemoryWalFactory : IWalFactory
     readonly InMemoryWalWriter? _shared;
 
     /// <summary>
-    ///     Initializes a new instance of <see cref="InMemoryWalFactory"/>.
+    ///     Initializes a new instance of <see cref="InMemoryWalFactory" />.
     /// </summary>
     /// <param name="options">The in-memory WAL options.</param>
     public InMemoryWalFactory(IOptions<InMemoryWalOptions> options)
@@ -28,7 +28,7 @@ public sealed class InMemoryWalFactory : IWalFactory
     ///     Uses a shared or new writer instance based on options.
     /// </summary>
     /// <param name="directory">The directory (ignored for in-memory).</param>
-    /// <returns>An <see cref="IWalReader"/> instance.</returns>
+    /// <returns>An <see cref="IWalReader" /> instance.</returns>
     public IWalReader CreateReader(string directory)
     {
         var writer = _options.SharedWriter ? _shared! : new InMemoryWalWriter(_options.MaxBufferedRecords);
@@ -40,7 +40,7 @@ public sealed class InMemoryWalFactory : IWalFactory
     ///     Uses a shared or new writer instance based on options.
     /// </summary>
     /// <param name="directory">The directory (ignored for in-memory).</param>
-    /// <returns>An <see cref="IWalWriter"/> instance.</returns>
+    /// <returns>An <see cref="IWalWriter" /> instance.</returns>
     public IWalWriter CreateWriter(string directory)
     {
         return _options.SharedWriter ? _shared! : new InMemoryWalWriter(_options.MaxBufferedRecords);

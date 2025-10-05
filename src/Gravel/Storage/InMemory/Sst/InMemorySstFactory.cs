@@ -16,7 +16,7 @@ public sealed class InMemorySstFactory : ISstFactory
     readonly InMemorySstOptions _options;
 
     /// <summary>
-    ///     Initializes a new instance of <see cref="InMemorySstFactory"/>.
+    ///     Initializes a new instance of <see cref="InMemorySstFactory" />.
     /// </summary>
     /// <param name="options">The in-memory SST options.</param>
     public InMemorySstFactory(IOptions<InMemorySstOptions> options)
@@ -31,7 +31,7 @@ public sealed class InMemorySstFactory : ISstFactory
     /// </summary>
     /// <param name="path">The path to the SST file.</param>
     /// <param name="ct">A cancellation token.</param>
-    /// <returns>A task representing the asynchronous creation of an <see cref="ISstReader"/>.</returns>
+    /// <returns>A task representing the asynchronous creation of an <see cref="ISstReader" />.</returns>
     public async ValueTask<ISstReader> CreateReaderAsync(string path, CancellationToken ct = default)
     {
         if (ct.IsCancellationRequested) return await Task.FromCanceled<ISstReader>(ct).ConfigureAwait(false);
@@ -49,7 +49,7 @@ public sealed class InMemorySstFactory : ISstFactory
     /// <param name="path">The path to the SST file.</param>
     /// <param name="expectedEntries">The expected number of entries to write.</param>
     /// <param name="ct">A cancellation token.</param>
-    /// <returns>A task representing the asynchronous creation of an <see cref="ISstWriter"/>.</returns>
+    /// <returns>A task representing the asynchronous creation of an <see cref="ISstWriter" />.</returns>
     public async ValueTask<ISstWriter> CreateWriterAsync(
         string path, int expectedEntries, CancellationToken ct = default)
     {
@@ -79,7 +79,7 @@ public sealed class InMemorySstFactory : ISstFactory
     ///     Seals an in-memory SST, deduplicating keys if configured.
     /// </summary>
     /// <param name="sst">The in-memory SST to seal.</param>
-    /// <returns>The sealed <see cref="InMemorySst"/>.</returns>
+    /// <returns>The sealed <see cref="InMemorySst" />.</returns>
     InMemorySst SealIfNeeded(InMemorySst sst)
     {
         if (!_options.DeduplicateOnSeal) return sst;

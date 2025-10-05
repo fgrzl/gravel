@@ -12,7 +12,7 @@ public sealed class InMemoryWalOptions
     public bool SharedWriter { get; set; } = true;
 
     /// <summary>
-    ///     Maximum number of WAL records retained in memory before oldest entries are dropped.
+    ///     Maximum number of WAL records retained in memory before the earliest entries are dropped.
     ///     (Purely for test/integration usage to avoid unbounded growth.)
     /// </summary>
     public int MaxBufferedRecords { get; set; } = 1_000_000;

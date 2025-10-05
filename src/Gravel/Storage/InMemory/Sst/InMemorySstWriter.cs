@@ -4,7 +4,7 @@ using Gravel.Abstractions.Storage.Sst;
 namespace Gravel.Storage.InMemory.Sst;
 
 /// <summary>
-///     In-memory SST writer implementation for writing entries and sealing into an <see cref="InMemorySst"/> instance.
+///     In-memory SST writer implementation for writing entries and sealing into an <see cref="InMemorySst" /> instance.
 /// </summary>
 /// <param name="onCompleted">Callback invoked when the writer is disposed and the SST is sealed.</param>
 public sealed class InMemorySstWriter(Action<InMemorySst> onCompleted) : ISstWriter
@@ -26,7 +26,7 @@ public sealed class InMemorySstWriter(Action<InMemorySst> onCompleted) : ISstWri
     ///     Flushes any buffered data to the SST. No-op for in-memory implementation.
     /// </summary>
     /// <param name="ct">A cancellation token.</param>
-    /// <returns>A completed <see cref="ValueTask"/>.</returns>
+    /// <returns>A completed <see cref="ValueTask" />.</returns>
     public ValueTask FlushAsync(CancellationToken ct = default)
     {
         return ValueTask.CompletedTask;
@@ -35,7 +35,7 @@ public sealed class InMemorySstWriter(Action<InMemorySst> onCompleted) : ISstWri
     /// <summary>
     ///     Disposes the writer, seals the SST, and invokes the completion callback.
     /// </summary>
-    /// <returns>A completed <see cref="ValueTask"/>.</returns>
+    /// <returns>A completed <see cref="ValueTask" />.</returns>
     public ValueTask DisposeAsync()
     {
         // Convert to (Key,Value) list keeping only puts for legacy in-memory SST representation
@@ -49,7 +49,7 @@ public sealed class InMemorySstWriter(Action<InMemorySst> onCompleted) : ISstWri
     ///     Asynchronously initializes the writer. No-op for in-memory implementation.
     /// </summary>
     /// <param name="ct">A cancellation token.</param>
-    /// <returns>A completed <see cref="ValueTask"/>.</returns>
+    /// <returns>A completed <see cref="ValueTask" />.</returns>
     public ValueTask InitializeAsync(CancellationToken ct = default)
     {
         return ValueTask.CompletedTask;

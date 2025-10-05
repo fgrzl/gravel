@@ -12,19 +12,24 @@ public sealed class SparseIndex
     ///     All key bytes stored in a single blob for better locality.
     /// </summary>
     byte[] _blob = [];
+
     int _blobLen;
+
     /// <summary>
     ///     Hashes of each key for fast lookup.
     /// </summary>
     ulong[] _hashes = [];
+
     /// <summary>
     ///     Lengths of each key.
     /// </summary>
     int[] _keyLens = [];
+
     /// <summary>
     ///     Start positions of each key in the blob.
     /// </summary>
     int[] _keyStarts = [];
+
     /// <summary>
     ///     Offsets associated with each key.
     /// </summary>

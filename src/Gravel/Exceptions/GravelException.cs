@@ -6,14 +6,14 @@ namespace Gravel.Exceptions;
 public class GravelException : Exception
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="GravelException"/> class.
+    ///     Initializes a new instance of the <see cref="GravelException" /> class.
     /// </summary>
     public GravelException()
     {
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="GravelException"/> class with a specified error message.
+    ///     Initializes a new instance of the <see cref="GravelException" /> class with a specified error message.
     /// </summary>
     /// <param name="message">The message that describes the error.</param>
     public GravelException(string message) : base(message)
@@ -21,7 +21,8 @@ public class GravelException : Exception
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="GravelException"/> class with a specified error message and a reference to the inner exception that is the cause of this exception.
+    ///     Initializes a new instance of the <see cref="GravelException" /> class with a specified error message and a
+    ///     reference to the inner exception that is the cause of this exception.
     /// </summary>
     /// <param name="message">The message that describes the error.</param>
     /// <param name="inner">The exception that is the cause of the current exception.</param>

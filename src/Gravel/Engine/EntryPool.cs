@@ -20,7 +20,7 @@ public sealed class EntryPool
     /// <param name="valueLen">The length of the value in the buffer.</param>
     /// <param name="seq">The sequence number associated with the entry.</param>
     /// <param name="kind">The kind of database entry.</param>
-    /// <returns>A pooled <see cref="Entry"/> instance.</returns>
+    /// <returns>A pooled <see cref="Entry" /> instance.</returns>
     public Entry Rent(byte[] key, int keyLen, byte[] value, int valueLen, ulong seq, DbEntryKind kind)
     {
         Entry entry;
@@ -59,12 +59,12 @@ public sealed class EntryPool
     public sealed class Entry
     {
         /// <summary>
-        ///     The backing buffer that contains the key bytes. Only the first <see cref="KeyLen"/> bytes are valid.
+        ///     The backing buffer that contains the key bytes. Only the first <see cref="KeyLen" /> bytes are valid.
         /// </summary>
         public byte[] Key = null!;
 
         /// <summary>
-        ///     The number of valid bytes in <see cref="Key"/>.
+        ///     The number of valid bytes in <see cref="Key" />.
         /// </summary>
         public int KeyLen;
 
@@ -79,12 +79,13 @@ public sealed class EntryPool
         public ulong Seq;
 
         /// <summary>
-        ///     The backing buffer that contains the value bytes. For DeleteRange this stores the range end; for DeleteKey it may be empty.
+        ///     The backing buffer that contains the value bytes. For DeleteRange this stores the range end; for DeleteKey it may
+        ///     be empty.
         /// </summary>
         public byte[] Value = null!; // for DeleteRange this stores range-end; for DeleteKey may be empty
 
         /// <summary>
-        ///     The number of valid bytes in <see cref="Value"/>.
+        ///     The number of valid bytes in <see cref="Value" />.
         /// </summary>
         public int ValueLen;
 

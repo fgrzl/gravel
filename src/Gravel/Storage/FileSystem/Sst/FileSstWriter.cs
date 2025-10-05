@@ -6,13 +6,14 @@ using Gravel.Compression.Default;
 using Gravel.Internals;
 using Gravel.Logging;
 using Gravel.Storage.Shared;
+using Gravel.Telemetry;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Gravel.Storage.FileSystem.Sst;
 
 /// <summary>
-/// File-based writer for SST (Sorted String Table) files.
+///     File-based writer for SST (Sorted String Table) files.
 /// </summary>
 public sealed class FileSstWriter : ISstWriter
 {
@@ -42,7 +43,7 @@ public sealed class FileSstWriter : ISstWriter
     int _lastKeyLen;
 
     /// <summary>
-    /// Initializes a new <see cref="FileSstWriter"/>.
+    ///     Initializes a new <see cref="FileSstWriter" />.
     /// </summary>
     /// <param name="path">Final SST path.</param>
     /// <param name="expectedEntries">Expected number of entries for sizing.</param>
@@ -80,7 +81,7 @@ public sealed class FileSstWriter : ISstWriter
     }
 
     /// <summary>
-    /// Writes entries to the SST.
+    ///     Writes entries to the SST.
     /// </summary>
     /// <param name="entries">Stream of database entries.</param>
     /// <param name="ct">Cancellation token.</param>
@@ -107,7 +108,7 @@ public sealed class FileSstWriter : ISstWriter
     }
 
     /// <summary>
-    /// Flushes any pending data blocks and writes footer structures.
+    ///     Flushes any pending data blocks and writes footer structures.
     /// </summary>
     /// <param name="ct">Cancellation token.</param>
     public async ValueTask FlushAsync(CancellationToken ct = default)
@@ -118,14 +119,14 @@ public sealed class FileSstWriter : ISstWriter
         if (_rangeDeletes.Count > 0)
         {
             var rdb = _rangeDeletes.Finish();
-            var rdbHandle = await WriteRawBlockAsync(rdb, CompressionKind.None, ct);
+            var rdbHandle = await WriteRawBlockAsync(rdb, CompressionKind.None, ct, "range.delete");
             _metaindex.Add("range.delete"u8, rdbHandle);
         }
 
-        var filterHandle = await WriteRawBlockAsync(_fullFilter.Finish(), CompressionKind.None, ct);
+        var filterHandle = await WriteRawBlockAsync(_fullFilter.Finish(), CompressionKind.None, ct, "filter.full");
         _metaindex.Add("filter.full"u8, filterHandle);
-        var indexHandle = await WriteRawBlockAsync(_index.Finish(), CompressionKind.None, ct);
-        var metaHandle = await WriteRawBlockAsync(_metaindex.Finish(), CompressionKind.None, ct);
+        var indexHandle = await WriteRawBlockAsync(_index.Finish(), CompressionKind.None, ct, "index");
+        var metaHandle = await WriteRawBlockAsync(_metaindex.Finish(), CompressionKind.None, ct, "metaindex");
 
         Span<byte> footer = stackalloc byte[48];
         var n = metaHandle.Encode(footer[..20]);
@@ -140,7 +141,7 @@ public sealed class FileSstWriter : ISstWriter
     }
 
     /// <summary>
-    /// Completes writing, seals the SST file, and releases resources.
+    ///     Completes writing, seals the SST file, and releases resources.
     /// </summary>
     public async ValueTask DisposeAsync()
     {
@@ -182,8 +183,8 @@ public sealed class FileSstWriter : ISstWriter
     }
 
     /// <summary>
-    /// Ensure writer has completed any async initialization. Safe to call multiple times.
-    /// Currently, a no-op but provided for API symmetry and future async init needs.
+    ///     Ensure writer has completed any async initialization. Safe to call multiple times.
+    ///     Currently, a no-op but provided for API symmetry and future async init needs.
     /// </summary>
     public ValueTask InitializeAsync(CancellationToken ct = default)
     {
@@ -251,6 +252,10 @@ public sealed class FileSstWriter : ISstWriter
             else
                 _index.Add(_lastKey.AsSpan(), new BlockHandle((ulong)offset, (ulong)size));
 
+            // telemetry
+            TelemetrySources.SstWrites.Add(1, new KeyValuePair<string, object?>("kind", "data"));
+            TelemetrySources.SstWriteSize.Record(size, new KeyValuePair<string, object?>("kind", "data"));
+
             _data.Reset();
         }
         finally
@@ -298,7 +303,7 @@ public sealed class FileSstWriter : ISstWriter
         return Crc32C.Compute(crcInput);
     }
 
-    async ValueTask<BlockHandle> WriteRawBlockAsync(byte[] raw, CompressionKind comp, CancellationToken ct)
+    async ValueTask<BlockHandle> WriteRawBlockAsync(byte[] raw, CompressionKind comp, CancellationToken ct, string kind)
     {
         var payload = comp == CompressionKind.None ? raw : _compressor.Compress(raw);
         var offset = _stream.Position;
@@ -320,6 +325,11 @@ public sealed class FileSstWriter : ISstWriter
         _stream.Write(trailer);
 
         var size = _stream.Position - offset;
+
+        // telemetry
+        TelemetrySources.SstWrites.Add(1, new KeyValuePair<string, object?>("kind", kind));
+        TelemetrySources.SstWriteSize.Record(size, new KeyValuePair<string, object?>("kind", kind));
+
         return new BlockHandle((ulong)offset, (ulong)size);
     }
 

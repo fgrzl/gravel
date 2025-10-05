@@ -12,13 +12,14 @@ public sealed class InMemorySst
     ///     Fast lookup dictionary mapping base64-encoded keys to entry index, key, and value.
     /// </summary>
     readonly Dictionary<string, (int Index, byte[] Key, byte[] Value)> _fast;
+
     /// <summary>
     ///     Ordered array of key-value entries.
     /// </summary>
     public readonly (byte[] Key, byte[] Value)[] Entries;
 
     /// <summary>
-    ///     Initializes a new instance of <see cref="InMemorySst"/> with the specified entries.
+    ///     Initializes a new instance of <see cref="InMemorySst" /> with the specified entries.
     /// </summary>
     /// <param name="entries">The key-value entries to store.</param>
     public InMemorySst(IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> entries)

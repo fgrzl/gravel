@@ -4,7 +4,7 @@ namespace Gravel.Compression.Default;
 
 /// <summary>
 ///     A no-op compressor that performs no compression or decompression.
-///     Used for blocks with <see cref="CompressionKind.None"/>.
+///     Used for blocks with <see cref="CompressionKind.None" />.
 /// </summary>
 public sealed class ZeroCompressor : IBlockCompressor
 {

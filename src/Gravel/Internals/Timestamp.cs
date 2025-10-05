@@ -176,6 +176,7 @@ public static class Timestamp
         ///     The start time in milliseconds since Unix epoch.
         /// </summary>
         public readonly long StartMillis = new DateTimeOffset(start).ToUnixTimeMilliseconds();
+
         /// <summary>
         ///     Stopwatch for measuring elapsed time since start.
         /// </summary>

@@ -197,7 +197,7 @@ public class FileWalReaderTests : IAsyncLifetime
         }
 
         // Act: write a second corrupt segment file
-        var corruptPath = Path.Combine(_dir, string.Format("{0:D20}.wal", 2ul));
+        var corruptPath = Path.Combine(_dir, $"{2ul:D20}.wal");
         await File.WriteAllBytesAsync(corruptPath, [0xFF]); // unknown record type
 
         // Assert

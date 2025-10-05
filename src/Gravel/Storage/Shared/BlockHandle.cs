@@ -12,6 +12,7 @@ public readonly struct BlockHandle(ulong offset, ulong size)
     ///     The offset of the block within the SST file.
     /// </summary>
     public readonly ulong Offset = offset;
+
     /// <summary>
     ///     The size of the block in bytes.
     /// </summary>

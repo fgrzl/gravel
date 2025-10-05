@@ -22,11 +22,12 @@ public readonly struct LexKey(byte[] bytes)
     readonly byte[] _bytes = bytes ?? [];
 
     /// <summary>
-    ///     Gets an empty <see cref="LexKey"/> instance.
+    ///     Gets an empty <see cref="LexKey" /> instance.
     /// </summary>
     public static readonly LexKey Empty = new([]);
+
     /// <summary>
-    ///     Gets a <see cref="LexKey"/> instance representing the last possible key.
+    ///     Gets a <see cref="LexKey" /> instance representing the last possible key.
     /// </summary>
     public static readonly LexKey Last = Encode(EndMarker);
 
@@ -49,10 +50,10 @@ public readonly struct LexKey(byte[] bytes)
     }
 
     /// <summary>
-    ///     Creates a <see cref="LexKey"/> from a hexadecimal string.
+    ///     Creates a <see cref="LexKey" /> from a hexadecimal string.
     /// </summary>
     /// <param name="hex">The hex string.</param>
-    /// <returns>A new <see cref="LexKey"/> instance.</returns>
+    /// <returns>A new <see cref="LexKey" /> instance.</returns>
     public static LexKey FromHexString(string hex)
     {
         if (string.IsNullOrEmpty(hex))
@@ -63,10 +64,10 @@ public readonly struct LexKey(byte[] bytes)
     }
 
     /// <summary>
-    ///     Creates a new <see cref="LexKey"/> from heterogeneous parts.
+    ///     Creates a new <see cref="LexKey" /> from heterogeneous parts.
     /// </summary>
     /// <param name="parts">The parts to encode.</param>
-    /// <returns>A new <see cref="LexKey"/> instance.</returns>
+    /// <returns>A new <see cref="LexKey" /> instance.</returns>
     public static LexKey New(params object?[] parts)
     {
         if (parts.Length == 0)
@@ -90,10 +91,10 @@ public readonly struct LexKey(byte[] bytes)
     }
 
     /// <summary>
-    ///     Encodes heterogeneous parts into a <see cref="LexKey"/>.
+    ///     Encodes heterogeneous parts into a <see cref="LexKey" />.
     /// </summary>
     /// <param name="parts">The parts to encode.</param>
-    /// <returns>A new <see cref="LexKey"/> instance.</returns>
+    /// <returns>A new <see cref="LexKey" /> instance.</returns>
     public static LexKey Encode(params object?[] parts)
     {
         return New(parts);
@@ -103,7 +104,7 @@ public readonly struct LexKey(byte[] bytes)
     ///     Encodes parts and appends a separator byte.
     /// </summary>
     /// <param name="parts">The parts to encode.</param>
-    /// <returns>A new <see cref="LexKey"/> instance.</returns>
+    /// <returns>A new <see cref="LexKey" /> instance.</returns>
     public static LexKey EncodeFirst(params object?[] parts)
     {
         var prefix = Encode(parts);
@@ -117,7 +118,7 @@ public readonly struct LexKey(byte[] bytes)
     ///     Encodes parts and appends an end marker byte.
     /// </summary>
     /// <param name="parts">The parts to encode.</param>
-    /// <returns>A new <see cref="LexKey"/> instance.</returns>
+    /// <returns>A new <see cref="LexKey" /> instance.</returns>
     public static LexKey EncodeLast(params object?[] parts)
     {
         var prefix = Encode(parts);
@@ -272,7 +273,7 @@ public readonly struct LexKey(byte[] bytes)
     }
 
     /// <summary>
-    ///     Compares two <see cref="LexKey"/> instances for lexicographic order.
+    ///     Compares two <see cref="LexKey" /> instances for lexicographic order.
     /// </summary>
     /// <param name="a">The first key.</param>
     /// <param name="b">The second key.</param>
@@ -291,7 +292,7 @@ public readonly struct LexKey(byte[] bytes)
     }
 
     /// <summary>
-    ///     Returns true if this key equals another <see cref="LexKey"/>.
+    ///     Returns true if this key equals another <see cref="LexKey" />.
     /// </summary>
     /// <param name="other">The other key.</param>
     /// <returns>True if equal, otherwise false.</returns>

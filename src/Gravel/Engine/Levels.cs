@@ -10,6 +10,7 @@ public sealed class Levels(int levelCount)
     ///     Internal storage for SST files in each level.
     /// </summary>
     readonly List<List<SstFile>> _levels = Enumerable.Range(0, levelCount).Select(_ => new List<SstFile>()).ToList();
+
     /// <summary>
     ///     Synchronization object for thread safety.
     /// </summary>

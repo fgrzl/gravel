@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Gravel.Storage.FileSystem.Wal;
 
 /// <summary>
-///     File-based implementation of <see cref="IWalWriter"/> that writes Write-Ahead Log (WAL)
+///     File-based implementation of <see cref="IWalWriter" /> that writes Write-Ahead Log (WAL)
 ///     records to rolling segment files on disk for durability and recovery.
 /// </summary>
 public sealed class FileWalWriter : IWalWriter
@@ -24,7 +24,7 @@ public sealed class FileWalWriter : IWalWriter
     FileStream _stream;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="FileWalWriter"/> class.
+    ///     Initializes a new instance of the <see cref="FileWalWriter" /> class.
     /// </summary>
     /// <param name="directory">Directory where WAL segment files are created.</param>
     /// <param name="segmentSizeLimit">Maximum size in bytes of a WAL segment before rolling to a new one.</param>

@@ -13,7 +13,7 @@ sealed class SstManager(ISstFactory sstFactory, Levels levels, string sstDir, IL
 
     public async Task LoadExistingAsync(CancellationToken ct = default)
     {
-        for (var l = 0; ; l++)
+        for (var l = 0;; l++)
         {
             if (l >= _levels.LevelCount) break;
             var files = _sstFactory.EnumerateLevelFiles(_sstDir, l);

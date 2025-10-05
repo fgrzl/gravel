@@ -7,28 +7,32 @@ namespace Gravel.Abstractions;
 public readonly struct Mutation
 {
     /// <summary>
-    /// The operation type (Put, Insert, Delete, DeleteRange).
+    ///     The operation type (Put, Insert, Delete, DeleteRange).
     /// </summary>
     public MutationOp Op { get; }
+
     /// <summary>
-    /// The key for Put/Delete operations.
+    ///     The key for Put/Delete operations.
     /// </summary>
     public ReadOnlyMemory<byte> Key { get; }
+
     /// <summary>
-    /// The value for Put/Insert operations.
+    ///     The value for Put/Insert operations.
     /// </summary>
     public ReadOnlyMemory<byte> Value { get; }
+
     /// <summary>
-    /// Optional time-to-live for Put/Insert operations.
+    ///     Optional time-to-live for Put/Insert operations.
     /// </summary>
     public TimeSpan? Ttl { get; }
+
     /// <summary>
-    /// The end key for DeleteRange operations.
+    ///     The end key for DeleteRange operations.
     /// </summary>
     public ReadOnlyMemory<byte> RangeEnd { get; }
 
     /// <summary>
-    /// Creates a new <see cref="Mutation"/> instance.
+    ///     Creates a new <see cref="Mutation" /> instance.
     /// </summary>
     /// <param name="op">The operation type.</param>
     /// <param name="key">The key for the operation.</param>
@@ -50,7 +54,7 @@ public readonly struct Mutation
     }
 
     /// <summary>
-    /// Creates a Put mutation.
+    ///     Creates a Put mutation.
     /// </summary>
     /// <param name="key">The key for the mutation.</param>
     /// <param name="value">The value for the mutation.</param>
@@ -62,7 +66,7 @@ public readonly struct Mutation
     }
 
     /// <summary>
-    /// Creates an Insert mutation.
+    ///     Creates an Insert mutation.
     /// </summary>
     /// <param name="key">The key for the mutation.</param>
     /// <param name="value">The value for the mutation.</param>
@@ -74,7 +78,7 @@ public readonly struct Mutation
     }
 
     /// <summary>
-    /// Creates a Delete mutation.
+    ///     Creates a Delete mutation.
     /// </summary>
     /// <param name="key">The key for the mutation.</param>
     /// <returns>A new Mutation instance configured as a Delete operation.</returns>
@@ -84,7 +88,7 @@ public readonly struct Mutation
     }
 
     /// <summary>
-    /// Creates a DeleteRange mutation.
+    ///     Creates a DeleteRange mutation.
     /// </summary>
     /// <param name="start">The start key for the range.</param>
     /// <param name="end">The end key for the range.</param>

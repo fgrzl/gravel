@@ -16,7 +16,7 @@ public sealed class CompactionWorker : ICompactionWorker
     readonly Channel<ICompactionTask> _queue;
 
     /// <summary>
-    ///     Initializes a new instance of <see cref="CompactionWorker"/>.
+    ///     Initializes a new instance of <see cref="CompactionWorker" />.
     /// </summary>
     /// <param name="bytesPerSecond">Initial bytes-per-second rate limit.</param>
     /// <param name="maxConcurrent">Maximum number of concurrent compaction tasks.</param>

@@ -15,7 +15,7 @@ public static class Buf
     ///     Uses stackalloc if below threshold, otherwise ArrayPool.
     /// </summary>
     /// <param name="length">The buffer length.</param>
-    /// <returns>A <see cref="BufferScope"/> for the requested length.</returns>
+    /// <returns>A <see cref="BufferScope" /> for the requested length.</returns>
     public static BufferScope Rent(int length)
     {
         return new BufferScope(length);
@@ -26,7 +26,7 @@ public static class Buf
     /// </summary>
     /// <param name="length">The buffer length.</param>
     /// <param name="clearOnDispose">Whether to clear the buffer on dispose.</param>
-    /// <returns>A <see cref="BufferScope"/> for the requested length.</returns>
+    /// <returns>A <see cref="BufferScope" /> for the requested length.</returns>
     public static BufferScope Rent(int length, bool clearOnDispose)
     {
         return new BufferScope(length, clearOnDispose);
@@ -36,7 +36,7 @@ public static class Buf
     ///     Rent a buffer for async code. Always uses ArrayPool since stackalloc can’t cross awaits.
     /// </summary>
     /// <param name="length">The buffer length.</param>
-    /// <returns>An <see cref="ArrayPoolScope"/> for the requested length.</returns>
+    /// <returns>An <see cref="ArrayPoolScope" /> for the requested length.</returns>
     public static ArrayPoolScope AsyncRent(int length)
     {
         return new ArrayPoolScope(length);
@@ -47,7 +47,7 @@ public static class Buf
     /// </summary>
     /// <param name="length">The buffer length.</param>
     /// <param name="clearOnDispose">Whether to clear the buffer on dispose.</param>
-    /// <returns>An <see cref="ArrayPoolScope"/> for the requested length.</returns>
+    /// <returns>An <see cref="ArrayPoolScope" /> for the requested length.</returns>
     public static ArrayPoolScope AsyncRent(int length, bool clearOnDispose)
     {
         return new ArrayPoolScope(length, clearOnDispose);
@@ -55,7 +55,7 @@ public static class Buf
 
     /// <summary>
     ///     Scope for a buffer rented from the shared array pool for async code.
-    ///     Implements <see cref="IDisposable"/> to ensure proper return to the pool.
+    ///     Implements <see cref="IDisposable" /> to ensure proper return to the pool.
     /// </summary>
     public sealed class ArrayPoolScope : IDisposable
     {
@@ -79,13 +79,15 @@ public static class Buf
         }
 
         /// <summary>
-        ///     Gets the buffer as a <see cref="Memory{Byte}"/>.
+        ///     Gets the buffer as a <see cref="Memory{Byte}" />.
         /// </summary>
-        public Memory<byte> Memory => _buffer == null ? Memory<byte>.Empty : _buffer.AsMemory(0, _length);
+        public Memory<byte> Memory => _buffer?.AsMemory(0, _length) ?? Memory<byte>.Empty;
+
         /// <summary>
-        ///     Gets the buffer as a <see cref="Span{Byte}"/>.
+        ///     Gets the buffer as a <see cref="Span{Byte}" />.
         /// </summary>
         public Span<byte> Span => _buffer == null ? Span<byte>.Empty : _buffer.AsSpan(0, _length);
+
         /// <summary>
         ///     Gets the underlying buffer array.
         /// </summary>

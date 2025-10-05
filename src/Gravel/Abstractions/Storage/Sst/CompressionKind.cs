@@ -9,6 +9,7 @@ public enum CompressionKind : byte
     ///     No compression.
     /// </summary>
     None = 0,
+
     /// <summary>
     ///     Snappy compression.
     /// </summary>

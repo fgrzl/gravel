@@ -1,36 +1,41 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using FluentAssertions;
-using Gravel.Storage.Shared;
+using Gravel.Internals;
 using Xunit;
 
 namespace Gravel.Storage.Shared.Tests;
 
 public class SimpleBlockBuilderTests
 {
-    static BlockHandle H(ulong off, ulong size) => new(off, size);
+    static BlockHandle H(ulong off, ulong size)
+    {
+        return new BlockHandle(off, size);
+    }
 
     static (byte[] Key, BlockHandle Handle)[] Decode(byte[] buf)
     {
-        var list = new System.Collections.Generic.List<(byte[] Key, BlockHandle Handle)>();
+        var list = new List<(byte[] Key, BlockHandle Handle)>();
         var pos = 0;
         while (pos < buf.Length)
         {
-            var keyLen = (int)Gravel.Internals.VarInt.Read32(buf, ref pos);
+            var keyLen = (int)VarInt.Read32(buf, ref pos);
             var key = new byte[keyLen];
             Array.Copy(buf, pos, key, 0, keyLen);
             pos += keyLen;
 
-            var hLen = (int)Gravel.Internals.VarInt.Read32(buf, ref pos);
+            var hLen = (int)VarInt.Read32(buf, ref pos);
             var hSpan = new ReadOnlySpan<byte>(buf, pos, hLen);
             var tmp = hSpan;
-            var off = Gravel.Internals.VarInt.Read64(ref tmp);
-            var size = Gravel.Internals.VarInt.Read64(ref tmp);
+            var off = VarInt.Read64(ref tmp);
+            var size = VarInt.Read64(ref tmp);
             pos += hLen;
 
             list.Add((key, new BlockHandle(off, size)));
         }
+
         return list.ToArray();
     }
 
@@ -48,6 +53,6 @@ public class SimpleBlockBuilderTests
 
         // Assert
         decoded.Select(d => Encoding.UTF8.GetString(d.Key)).Should().Equal("a", "b");
-        decoded.Select(d => (d.Handle.Offset, d.Handle.Size)).Should().Equal(new (ulong, ulong)[]{(10UL,3UL),(20UL,4UL)});
+        decoded.Select(d => (d.Handle.Offset, d.Handle.Size)).Should().Equal((10UL, 3UL), (20UL, 4UL));
     }
 }

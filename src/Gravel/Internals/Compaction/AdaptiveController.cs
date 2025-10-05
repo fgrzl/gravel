@@ -13,7 +13,7 @@ public sealed class AdaptiveController : IDisposable
     readonly CompactionWorker _worker;
 
     /// <summary>
-    ///     Initializes a new instance of <see cref="AdaptiveController"/>.
+    ///     Initializes a new instance of <see cref="AdaptiveController" />.
     /// </summary>
     /// <param name="worker">The compaction worker to control.</param>
     /// <param name="minRate">Minimum bytes per second.</param>

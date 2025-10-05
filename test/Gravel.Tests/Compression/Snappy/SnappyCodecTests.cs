@@ -157,7 +157,7 @@ public class SnappyCodecTests
         {
             ms.WriteByte(0x0A); // expected 10
             ms.WriteByte(1 << 2 | 0); // literal len 2
-            ms.Write([9, 9]);
+            ms.Write("\t\t"u8);
             // COPY_2 tag with len=1 (encoded len-1=0)
             ms.WriteByte(0 << 2 | 2);
             // offset 0x0100 -> 256, out of bounds when w=2

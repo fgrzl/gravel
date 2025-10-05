@@ -11,6 +11,7 @@ public interface ICompactionTask
     ///     Gets the unique task ID for this compaction task.
     /// </summary>
     string TaskId { get; }
+
     /// <summary>
     ///     Gets the total bytes expected to be processed by this compaction task.
     /// </summary>

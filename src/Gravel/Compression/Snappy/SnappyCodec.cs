@@ -324,7 +324,7 @@ public static class SnappyCodec
         bool _disposed;
 
         /// <summary>
-        ///     Initializes a new instance of <see cref="SnappyStream"/> for compression or decompression.
+        ///     Initializes a new instance of <see cref="SnappyStream" /> for compression or decompression.
         /// </summary>
         /// <param name="stream">The underlying stream.</param>
         /// <param name="mode">Compression or decompression mode.</param>
@@ -344,14 +344,17 @@ public static class SnappyCodec
         ///     Gets a value indicating whether the stream supports reading.
         /// </summary>
         public override bool CanRead => !_disposed && _mode == CompressionMode.Decompress && _baseStream.CanRead;
+
         /// <summary>
         ///     Gets a value indicating whether the stream supports seeking (always false).
         /// </summary>
         public override bool CanSeek => false;
+
         /// <summary>
         ///     Gets a value indicating whether the stream supports writing.
         /// </summary>
         public override bool CanWrite => !_disposed && _mode == CompressionMode.Compress && _baseStream.CanWrite;
+
         /// <summary>
         ///     Gets the length of the stream (not supported).
         /// </summary>
@@ -451,7 +454,7 @@ public static class SnappyCodec
             if (disposing)
                 try
                 {
-                    if (_mode == CompressionMode.Compress && _writeBuffer != null && _writeBuffer.Length > 0)
+                    if (_mode == CompressionMode.Compress && _writeBuffer is { Length: > 0 })
                     {
                         var data = _writeBuffer.ToArray();
                         var comp = Compress(data);

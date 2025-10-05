@@ -21,7 +21,7 @@ public sealed class FileSstFactory(
     /// </summary>
     /// <param name="path">Path to the SST file.</param>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>An initialized <see cref="ISstReader"/>.</returns>
+    /// <returns>An initialized <see cref="ISstReader" />.</returns>
     public async ValueTask<ISstReader> CreateReaderAsync(string path, CancellationToken ct = default)
     {
         var reader = (FileSstReader)CreateReader(path);
@@ -35,7 +35,7 @@ public sealed class FileSstFactory(
     /// <param name="path">Path where the SST will be written.</param>
     /// <param name="expectedEntries">Expected number of entries to help size internal structures.</param>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>An initialized <see cref="ISstWriter"/>.</returns>
+    /// <returns>An initialized <see cref="ISstWriter" />.</returns>
     public async ValueTask<ISstWriter> CreateWriterAsync(
         string path, int expectedEntries, CancellationToken ct = default)
     {
@@ -63,7 +63,7 @@ public sealed class FileSstFactory(
     ///     Creates a non-initialized file-based SST reader.
     /// </summary>
     /// <param name="path">Path to the SST file.</param>
-    /// <returns>A new <see cref="ISstReader"/>.</returns>
+    /// <returns>A new <see cref="ISstReader" />.</returns>
     public ISstReader CreateReader(string path)
     {
         var logger = loggerFactory.CreateLogger<FileSstReader>();
@@ -75,7 +75,7 @@ public sealed class FileSstFactory(
     /// </summary>
     /// <param name="path">Destination file path for the SST.</param>
     /// <param name="expectedEntries">Expected number of entries to guide writer sizing.</param>
-    /// <returns>A new <see cref="ISstWriter"/>.</returns>
+    /// <returns>A new <see cref="ISstWriter" />.</returns>
     public ISstWriter CreateWriter(string path, int expectedEntries)
     {
         var dir = Path.GetDirectoryName(path);
@@ -90,4 +90,3 @@ public sealed class FileSstFactory(
         return new FileSstWriter(path, expectedEntries, bufferSize, blockSize, compressor, logger);
     }
 }
-

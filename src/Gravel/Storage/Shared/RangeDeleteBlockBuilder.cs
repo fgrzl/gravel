@@ -13,12 +13,12 @@ public sealed class RangeDeleteBlockBuilder
     readonly List<(byte[] Start, byte[] End, ulong Seq)> _entries = [];
 
     /// <summary>
-    /// Gets the number of recorded range tombstones.
+    ///     Gets the number of recorded range tombstones.
     /// </summary>
     public int Count => _entries.Count;
 
     /// <summary>
-    /// Adds a new range deletion tombstone.
+    ///     Adds a new range deletion tombstone.
     /// </summary>
     /// <param name="start">The inclusive start key.</param>
     /// <param name="end">The exclusive end key.</param>
@@ -29,7 +29,7 @@ public sealed class RangeDeleteBlockBuilder
     }
 
     /// <summary>
-    /// Finalizes the block and returns its serialized bytes.
+    ///     Finalizes the block and returns its serialized bytes.
     /// </summary>
     /// <returns>Serialized range-delete block.</returns>
     public byte[] Finish()

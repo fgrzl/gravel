@@ -21,12 +21,12 @@ public static class Compactor
     }
 
     /// <summary>
-    ///     Merges multiple SST files asynchronously, yielding <see cref="DbEntry"/>s in sorted order.
+    ///     Merges multiple SST files asynchronously, yielding <see cref="DbEntry" />s in sorted order.
     ///     Handles point entries and range tombstones, and applies range masking logic.
     /// </summary>
     /// <param name="files">The list of SST files to merge.</param>
     /// <param name="ct">A cancellation token.</param>
-    /// <returns>An async enumerable of merged <see cref="DbEntry"/>s.</returns>
+    /// <returns>An async enumerable of merged <see cref="DbEntry" />s.</returns>
     public static async IAsyncEnumerable<DbEntry> MergeLevelFilesAsync(
         List<SstFile> files,
         [EnumeratorCancellation] CancellationToken ct)

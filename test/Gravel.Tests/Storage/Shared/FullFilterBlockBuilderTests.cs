@@ -1,9 +1,6 @@
 using System;
 using System.Buffers.Binary;
-using System.Text;
 using FluentAssertions;
-using Gravel.Internals.Filters;
-using Gravel.Storage.Shared;
 using Xunit;
 
 namespace Gravel.Storage.Shared.Tests;
@@ -14,7 +11,7 @@ public class FullFilterBlockBuilderTests
     public void should_serialize_bloom_filter_header_and_bits()
     {
         // Arrange
-        var b = new FullFilterBlockBuilder(expectedEntries: 10);
+        var b = new FullFilterBlockBuilder(10);
         b.AddKey("a"u8);
         b.AddKey("b"u8);
 
@@ -35,7 +32,7 @@ public class FullFilterBlockBuilderTests
     public void should_increase_might_contain_probability_after_adds()
     {
         // Arrange
-        var b = new FullFilterBlockBuilder(expectedEntries: 10);
+        var b = new FullFilterBlockBuilder(10);
         var bytes1 = b.Finish();
         var bf1Bits = bytes1.AsSpan(12);
 

@@ -16,32 +16,40 @@ public sealed class MemTable
     ///     Maximum level for skip list nodes.
     /// </summary>
     const int MaxLevel = 16;
+
     /// <summary>
     ///     Dummy head node for skip list.
     /// </summary>
     readonly Node _head = new(null!, MaxLevel);
+
     /// <summary>
     ///     Pool for entry objects to reduce allocations.
     /// </summary>
     readonly EntryPool _pool = new();
+
     /// <summary>
     ///     Range index for fast coverage checks.
     /// </summary>
     readonly RangeIndex _rangeIndex = new();
+
     /// <summary>
     ///     Synchronization object for thread safety.
     /// </summary>
     readonly object _sync = new();
+
     /// <summary>
     ///     Update array reused for skip list insertions.
     /// </summary>
     readonly Node?[] _update = new Node?[MaxLevel];
+
     int _count;
     int _level = 1;
+
     /// <summary>
     ///     Tracks how often Scan() is enumerated.
     /// </summary>
     long _scanEnumerations;
+
     /// <summary>
     ///     Gets the number of times Scan() has been enumerated.
     /// </summary>
@@ -361,6 +369,28 @@ public sealed class MemTable
     }
 
     /// <summary>
+    ///     Asynchronously enumerates all entries in the memtable as <see cref="DbEntry" />s.
+    /// </summary>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>An async enumerable of <see cref="DbEntry" />s.</returns>
+    public async IAsyncEnumerable<DbEntry> EnumerateEntriesAsync([EnumeratorCancellation] CancellationToken ct)
+    {
+        foreach (var (k, v, seq, kind) in Scan())
+        {
+            ct.ThrowIfCancellationRequested();
+            var e = kind switch
+            {
+                DbEntryKind.Put => DbEntry.Put(k, v, seq),
+                DbEntryKind.DeleteKey => DbEntry.DeleteKey(k, seq),
+                DbEntryKind.DeleteRange => DbEntry.DeleteRange(k, v, seq),
+                _ => default
+            };
+            yield return e;
+            await Task.Yield();
+        }
+    }
+
+    /// <summary>
     ///     Skip list node for MemTable entries.
     /// </summary>
     sealed class Node(EntryPool.Entry entry, int level)
@@ -489,28 +519,6 @@ public sealed class MemTable
             }
 
             return removed;
-        }
-    }
-
-    /// <summary>
-    ///     Asynchronously enumerates all entries in the memtable as <see cref="DbEntry"/>s.
-    /// </summary>
-    /// <param name="ct">A cancellation token.</param>
-    /// <returns>An async enumerable of <see cref="DbEntry"/>s.</returns>
-    public async IAsyncEnumerable<DbEntry> EnumerateEntriesAsync([EnumeratorCancellation] CancellationToken ct)
-    {
-        foreach (var (k, v, seq, kind) in Scan())
-        {
-            ct.ThrowIfCancellationRequested();
-            var e = kind switch
-            {
-                DbEntryKind.Put => DbEntry.Put(k, v, seq),
-                DbEntryKind.DeleteKey => DbEntry.DeleteKey(k, seq),
-                DbEntryKind.DeleteRange => DbEntry.DeleteRange(k, v, seq),
-                _ => default
-            };
-            yield return e;
-            await Task.Yield();
         }
     }
 }
