@@ -21,6 +21,8 @@ public sealed class FileSstWriter : ISstWriter
 
     // Initialization task started by ctor; currently trivial but allows async init without blocking ctor
     readonly Task _initTask;
+
+    readonly byte[] _lastKey = [];
     readonly ILogger _logger;
     readonly SimpleBlockBuilder _metaindex = new();
 
@@ -30,8 +32,6 @@ public sealed class FileSstWriter : ISstWriter
     readonly int _targetBlockSize;
     readonly string _tmpPath;
     int _entryCount;
-
-    readonly byte[] _lastKey = [];
 
     // New pooled last key buffer and length
     byte[]? _lastKeyBuf;
@@ -68,62 +68,13 @@ public sealed class FileSstWriter : ISstWriter
 
     public async ValueTask WriteAsync(IAsyncEnumerable<DbEntry> entries, CancellationToken ct = default)
     {
-        // Rent a reusable buffer for composing internal keys (user key + 8-byte trailer)
         byte[]? tempKeyBuf = null;
         try
         {
-            await foreach (var e in entries.WithCancellation(ct).ConfigureAwait(false))
+            await foreach (var entry in entries.WithCancellation(ct).ConfigureAwait(false))
             {
-                // On-disk type encoding: Put=1, DeleteKey=0, DeleteRange=2
-                byte type = e.Kind switch
-                {
-                    DbEntryKind.Put => 0x1,
-                    DbEntryKind.DeleteKey => 0x0,
-                    DbEntryKind.DeleteRange => 0x2,
-                    _ => throw new InvalidOperationException()
-                };
-
-                if (e.Kind == DbEntryKind.DeleteRange)
-                {
-                    // Buffer range tombstone in separate structure
-                    _rangeDeletes.Add(e.Key.Span, e.Value.Span, e.Sequence);
+                if (!HandleEntry(entry, ref tempKeyBuf))
                     continue;
-                }
-
-                var needed = e.Key.Length + 8;
-                if (tempKeyBuf == null)
-                {
-                    tempKeyBuf = ArrayPool<byte>.Shared.Rent(Math.Max(needed, 256));
-                }
-                else if (needed > tempKeyBuf.Length)
-                {
-                    ArrayPool<byte>.Shared.Return(tempKeyBuf);
-                    tempKeyBuf = ArrayPool<byte>.Shared.Rent(Math.Max(needed, tempKeyBuf.Length * 2));
-                }
-
-                // compose internal key into tempKeyBuf
-                e.Key.Span.CopyTo(tempKeyBuf.AsSpan(0, e.Key.Length));
-                var trailer = e.Sequence << 8 | type;
-                BinaryPrimitives.WriteUInt64LittleEndian(tempKeyBuf.AsSpan(e.Key.Length, 8), trailer);
-
-                var ikeySpan = tempKeyBuf.AsSpan(0, needed);
-
-                _fullFilter.AddKey(e.Key.Span);
-                _data.Add(ikeySpan, e.Kind == DbEntryKind.Put ? e.Value.Span : ReadOnlySpan<byte>.Empty);
-
-                // store last key into pooled buffer to avoid allocating per entry
-                if (_lastKeyBuf == null)
-                {
-                    _lastKeyBuf = ArrayPool<byte>.Shared.Rent(Math.Max(needed, 256));
-                }
-                else if (needed > _lastKeyBuf.Length)
-                {
-                    ArrayPool<byte>.Shared.Return(_lastKeyBuf);
-                    _lastKeyBuf = ArrayPool<byte>.Shared.Rent(Math.Max(needed, _lastKeyBuf.Length * 2));
-                }
-
-                ikeySpan.CopyTo(_lastKeyBuf.AsSpan(0, needed));
-                _lastKeyLen = needed;
 
                 _entryCount++;
                 if (_data.CurrentSize >= _targetBlockSize)
@@ -133,9 +84,7 @@ public sealed class FileSstWriter : ISstWriter
         finally
         {
             if (tempKeyBuf != null)
-            {
                 ArrayPool<byte>.Shared.Return(tempKeyBuf);
-            }
         }
     }
 
@@ -217,67 +166,48 @@ public sealed class FileSstWriter : ISstWriter
         return _initTask.IsCompletedSuccessfully ? ValueTask.CompletedTask : new ValueTask(_initTask);
     }
 
+    bool HandleEntry(DbEntry entry, ref byte[]? tempKeyBuf)
+    {
+        if (entry.Kind == DbEntryKind.DeleteRange)
+        {
+            _rangeDeletes.Add(entry.Key.Span, entry.Value.Span, entry.Sequence);
+            return false;
+        }
+
+        byte type = entry.Kind switch
+        {
+            DbEntryKind.Put => 0x1,
+            DbEntryKind.DeleteKey => 0x0,
+            _ => throw new InvalidOperationException()
+        };
+
+        var needed = entry.Key.Length + 8;
+        tempKeyBuf = EnsureBuffer(tempKeyBuf, needed);
+        entry.Key.Span.CopyTo(tempKeyBuf.AsSpan(0, entry.Key.Length));
+        var trailer = entry.Sequence << 8 | type;
+        BinaryPrimitives.WriteUInt64LittleEndian(tempKeyBuf.AsSpan(entry.Key.Length, 8), trailer);
+        var ikeySpan = tempKeyBuf.AsSpan(0, needed);
+
+        _fullFilter.AddKey(entry.Key.Span);
+        _data.Add(ikeySpan, entry.Kind == DbEntryKind.Put ? entry.Value.Span : ReadOnlySpan<byte>.Empty);
+
+        _lastKeyBuf = EnsureBuffer(_lastKeyBuf, needed);
+        ikeySpan.CopyTo(_lastKeyBuf.AsSpan(0, needed));
+        _lastKeyLen = needed;
+
+        return true;
+    }
+
     async ValueTask FlushDataBlockAsync(CancellationToken ct)
     {
         if (_data.CurrentSize == 0) return;
 
-        // Use pooled finish to get buffer and length without allocating a new array
         var pooled = _data.FinishPooled();
         try
         {
             var raw = pooled.Buffer.AsSpan(0, pooled.Length);
-
-            byte[]? compArr = null;
-            int compLen;
-            var rentedComp = false;
-
-            if (_compressor.TryCompress(raw, Span<byte>.Empty, out _))
-            {
-                // If compressor supports TryCompress, use a local pooled buffer sized by GetMaxCompressedLength
-                var maxLen = _compressor.GetMaxCompressedLength(raw.Length);
-                compArr = ArrayPool<byte>.Shared.Rent(maxLen);
-                rentedComp = true;
-                if (!_compressor.TryCompress(raw, compArr, out compLen))
-                {
-                    // fallback to legacy path
-                    ArrayPool<byte>.Shared.Return(compArr);
-                    rentedComp = false;
-                    compArr = _compressor.Compress(raw);
-                    compLen = compArr.Length;
-                }
-            }
-            else
-            {
-                // fall back to allocation-returning API
-                var tmp = _compressor.Compress(raw);
-                compArr = tmp;
-                compLen = tmp.Length;
-            }
-
-            // compute crc
-            uint crc;
-            var compType = (byte)_compressor.Kind;
-            if (compLen <= 1024)
-            {
-                Span<byte> crcInput = stackalloc byte[compLen + 1];
-                new ReadOnlySpan<byte>(compArr, 0, compLen).CopyTo(crcInput);
-                crcInput[^1] = compType;
-                crc = Crc32C.Compute(crcInput);
-            }
-            else
-            {
-                var pooledCrc = ArrayPool<byte>.Shared.Rent(compLen + 1);
-                try
-                {
-                    new ReadOnlySpan<byte>(compArr, 0, compLen).CopyTo(pooledCrc.AsSpan(0, compLen));
-                    pooledCrc[compLen] = compType;
-                    crc = Crc32C.Compute(pooledCrc.AsSpan(0, compLen + 1));
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(pooledCrc);
-                }
-            }
+            var (compArr, compLen, compType) = CompressBlock(raw);
+            var crc = ComputeBlockCrc(compArr, compLen, compType);
 
             var offset = _stream.Position;
             await _stream.WriteAsync(compArr.AsMemory(0, compLen), ct).ConfigureAwait(false);
@@ -290,27 +220,52 @@ public sealed class FileSstWriter : ISstWriter
 
             // add to index using pooled last key
             if (_lastKeyBuf != null && _lastKeyLen > 0)
-            {
                 _index.Add(_lastKeyBuf.AsSpan(0, _lastKeyLen), new BlockHandle((ulong)offset, (ulong)size));
-            }
             else
-            {
                 _index.Add(_lastKey.AsSpan(), new BlockHandle((ulong)offset, (ulong)size));
-            }
 
             _data.Reset();
-
-            // return compressor buffer if it was pooled
-            if (rentedComp && compArr != null)
-            {
-                ArrayPool<byte>.Shared.Return(compArr);
-            }
         }
         finally
         {
-            // Return pooled data block buffer
             ArrayPool<byte>.Shared.Return(pooled.Buffer);
         }
+    }
+
+    (byte[] compArr, int compLen, byte compType) CompressBlock(ReadOnlySpan<byte> raw)
+    {
+        var compType = (byte)_compressor.Kind;
+        if (_compressor.TryCompress(raw, Span<byte>.Empty, out _))
+        {
+            var maxLen = _compressor.GetMaxCompressedLength(raw.Length);
+            using var scope = Buf.Rent(maxLen);
+            var pooledBuf = scope.Buffer!;
+            if (_compressor.TryCompress(raw, pooledBuf, out var compLen))
+            {
+                // If the compressed data fills the buffer exactly, return it directly
+                if (compLen == pooledBuf.Length)
+                {
+                    return (pooledBuf, compLen, compType);
+                }
+                // Otherwise, slice the buffer to the actual length
+                var resultArr = new byte[compLen];
+                Array.Copy(pooledBuf, 0, resultArr, 0, compLen);
+                return (resultArr, compLen, compType);
+            }
+            var fallbackArr = _compressor.Compress(raw);
+            return (fallbackArr, fallbackArr.Length, compType);
+        }
+        var arr2 = _compressor.Compress(raw);
+        return (arr2, arr2.Length, compType);
+    }
+
+    static uint ComputeBlockCrc(byte[] compArr, int compLen, byte compType)
+    {
+        using var scope = Buf.Rent(compLen + 1);
+        var crcInput = scope.Span;
+        new ReadOnlySpan<byte>(compArr, 0, compLen).CopyTo(crcInput);
+        crcInput[compLen] = compType;
+        return Crc32C.Compute(crcInput);
     }
 
     async ValueTask<BlockHandle> WriteRawBlockAsync(byte[] raw, CompressionKind comp, CancellationToken ct)
@@ -336,5 +291,17 @@ public sealed class FileSstWriter : ISstWriter
 
         var size = _stream.Position - offset;
         return new BlockHandle((ulong)offset, (ulong)size);
+    }
+
+    byte[] EnsureBuffer(byte[]? buffer, int size)
+    {
+        if (buffer == null || buffer.Length < size)
+        {
+            if (buffer != null)
+                ArrayPool<byte>.Shared.Return(buffer);
+            buffer = ArrayPool<byte>.Shared.Rent(size);
+        }
+
+        return buffer;
     }
 }
