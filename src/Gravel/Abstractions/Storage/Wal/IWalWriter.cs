@@ -19,25 +19,40 @@ public interface IWalWriter : IAsyncDisposable
     /// <summary>
     ///     Write a BEGIN record for the specified transaction.
     /// </summary>
+    /// <param name="txnId">The transaction ID.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     ValueTask BeginTransactionAsync(ulong txnId, CancellationToken ct = default);
 
     /// <summary>
     ///     Write a DATA record for the specified transaction.
     /// </summary>
+    /// <param name="txnId">The transaction ID.</param>
+    /// <param name="entry">The database entry.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     ValueTask AppendAsync(ulong txnId, DbEntry entry, CancellationToken ct = default);
 
     /// <summary>
     ///     Write a COMMIT record for the specified transaction.
     /// </summary>
+    /// <param name="txnId">The transaction ID.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     ValueTask CommitTransactionAsync(ulong txnId, CancellationToken ct = default);
 
     /// <summary>
     ///     Write a ROLLBACK record for the specified transaction.
     /// </summary>
+    /// <param name="txnId">The transaction ID.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     ValueTask RollbackTransactionAsync(ulong txnId, CancellationToken ct = default);
 
     /// <summary>
     ///     Ensure all pending writes are durable on disk.
     /// </summary>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     ValueTask FlushAsync(CancellationToken ct = default);
 }

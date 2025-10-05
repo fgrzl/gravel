@@ -2,10 +2,18 @@
 
 namespace Gravel.Abstractions.Storage.Sst;
 
+/// <summary>
+///     Builds a simple block for SST storage, encoding key and handle pairs into a buffer.
+/// </summary>
 sealed class SimpleBlockBuilder
 {
     readonly MemoryStream _buf = new();
 
+    /// <summary>
+    ///     Adds a key and its associated <see cref="BlockHandle" /> to the block.
+    /// </summary>
+    /// <param name="key">The key to add.</param>
+    /// <param name="handle">The block handle associated with the key.</param>
     public void Add(ReadOnlySpan<byte> key, in BlockHandle handle)
     {
         Span<byte> tmp = stackalloc byte[20];
@@ -20,11 +28,18 @@ sealed class SimpleBlockBuilder
         _buf.Write(hv[..hn]);
     }
 
+    /// <summary>
+    ///     Finalizes the block and returns the encoded buffer as a byte array.
+    /// </summary>
+    /// <returns>The finished block as a byte array.</returns>
     public byte[] Finish()
     {
         return _buf.ToArray();
     }
 
+    /// <summary>
+    ///     Resets the block builder, clearing the buffer.
+    /// </summary>
     public void Reset()
     {
         _buf.SetLength(0);

@@ -13,8 +13,16 @@ using Microsoft.Extensions.Options;
 
 namespace Gravel;
 
+/// <summary>
+///     Factory methods for creating Gravel database engine instances with in-memory or file system storage.
+/// </summary>
 public static class GravelFactory
 {
+    /// <summary>
+    ///     Creates an in-memory Gravel database engine instance.
+    /// </summary>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>An initialized <see cref="IDbEngine" /> using in-memory SST and WAL storage.</returns>
     public static async Task<IDbEngine> CreateInMemoryAsync(CancellationToken ct = default)
     {
         var sst = new InMemorySstFactory(Options.Create(new InMemorySstOptions()));
@@ -30,6 +38,12 @@ public static class GravelFactory
         return engine;
     }
 
+    /// <summary>
+    ///     Creates a file system-backed Gravel database engine instance at the specified path.
+    /// </summary>
+    /// <param name="path">The directory path for database files.</param>
+    /// <param name="ct">A cancellation token.</param>
+    /// <returns>An initialized <see cref="IDbEngine" /> using file system SST and WAL storage.</returns>
     public static async Task<IDbEngine> CreateFileSystemAsync(string path, CancellationToken ct = default)
     {
         if (!Directory.Exists(path))
@@ -52,6 +66,13 @@ public static class GravelFactory
         return engine;
     }
 
+    /// <summary>
+    ///     Creates a Gravel database engine instance using the provided SST and WAL factories and options.
+    /// </summary>
+    /// <param name="sstFactory">The SST factory to use.</param>
+    /// <param name="walFactory">The WAL factory to use.</param>
+    /// <param name="options">The database options.</param>
+    /// <returns>A new <see cref="IDbEngine" /> instance.</returns>
     static IDbEngine CreateEngine(ISstFactory sstFactory, IWalFactory walFactory, GravelOptions options)
     {
         var worker = new CompactionWorker(double.MaxValue);
