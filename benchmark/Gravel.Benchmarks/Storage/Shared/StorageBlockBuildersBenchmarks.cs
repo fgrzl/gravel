@@ -6,16 +6,18 @@ using Gravel.Storage.Shared;
 
 namespace Gravel.Benchmarks.Storage.Shared;
 
-[SimpleJob]
+[ShortRunJob]
 [MemoryDiagnoser]
 public class StorageBlockBuildersBenchmarks
 {
     byte[][] _keys = null!;
     byte[][] _values = null!;
 
-    [Params(8, 64)] public int KeyLen;
+    // limit to a single key length to reduce combinatorial runs
+    [Params(8)] public int KeyLen;
 
-    [Params(1_000, 10_000)] public int N;
+    // reduce counts to make the benchmark complete faster
+    [Params(10, 100)] public int N;
 
     [GlobalSetup]
     public void Setup()
