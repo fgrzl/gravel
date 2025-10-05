@@ -353,4 +353,41 @@ public abstract class EngineTestsBase
         // Assert
         await act.Should().ThrowAsync<GravelInvalidOperationException>();
     }
+
+    // New tests covering top-level InsertAsync and Batch duplicate-insert behavior
+    [Fact]
+    public async Task should_insert_and_get_given_insert_for_missing_key()
+    {
+        var k = B("insert1");
+        var v = B("vi");
+
+        await Engine.InsertAsync(k, v);
+        var got = await Engine.GetAsync(k);
+        got.HasValue.Should().BeTrue();
+        Encoding.UTF8.GetString(got!.Value.Span).Should().Be("vi");
+    }
+
+    [Fact]
+    public async Task should_fail_insert_given_existing_key_when_insert_async()
+    {
+        var k = B("insert_exist");
+        await Engine.PutAsync(k, B("v0"));
+
+        var act = async () => await Engine.InsertAsync(k, B("v1"));
+        await act.Should().ThrowAsync<GravelInvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task should_fail_duplicate_insert_within_batch_when_batch_async()
+    {
+        var k = B("batchdup");
+        var batch = new List<Mutation>
+        {
+            Mutation.Insert(k, B("v1")),
+            Mutation.Insert(k, B("v2"))
+        };
+
+        var act = async () => await Engine.BatchAsync(batch);
+        await act.Should().ThrowAsync<GravelInvalidOperationException>();
+    }
 }

@@ -1,0 +1,52 @@
+using System.IO;
+using System.Text;
+using System.Threading.Tasks;
+using FluentAssertions;
+using Gravel.TestHelpers;
+using Xunit;
+
+namespace Gravel.Engine;
+
+public class BackupRestoreTests
+{
+    [Fact]
+    public async Task should_backup_and_restore_file_system_database()
+    {
+        // Arrange: create temp directories for original DB and restore target, plus archive path
+        using var src = new TempDirectory("gravel-src-");
+        using var dst = new TempDirectory("gravel-dst-");
+        var archive = Path.Combine(Path.GetTempPath(), "gravel_backup_" + Path.GetRandomFileName() + ".zip");
+
+        // Create an engine backed by the filesystem and put some data
+        var eng = await GravelFactory.CreateFileSystemAsync(src.Path);
+        await eng.PutAsync(Encoding.UTF8.GetBytes("k1"), Encoding.UTF8.GetBytes("v1"));
+        await eng.PutAsync(Encoding.UTF8.GetBytes("k2"), Encoding.UTF8.GetBytes("v2"));
+
+        // Act: create backup archive and dispose engine
+        await eng.BackupAsync(archive, new BackupOptions { IncludeWalSegments = false });
+        await eng.DisposeAsync();
+
+        // Use a separate engine instance for the restore target; dispose it so RestoreAsync is allowed
+        var restoreEngineHolder = await GravelFactory.CreateFileSystemAsync(dst.Path);
+        await restoreEngineHolder.DisposeAsync();
+
+        // Perform restore into the restore directory
+        await restoreEngineHolder.RestoreAsync(archive);
+
+        // Open a new engine against the restored directory and verify data
+        var restored = await GravelFactory.CreateFileSystemAsync(dst.Path);
+        var g1 = await restored.GetAsync(Encoding.UTF8.GetBytes("k1"));
+        var g2 = await restored.GetAsync(Encoding.UTF8.GetBytes("k2"));
+
+        // Assert
+        g1.HasValue.Should().BeTrue();
+        Encoding.UTF8.GetString(g1!.Value.Span).Should().Be("v1");
+        g2.HasValue.Should().BeTrue();
+        Encoding.UTF8.GetString(g2!.Value.Span).Should().Be("v2");
+
+        // Cleanup
+        await restored.DisposeAsync();
+
+        try { File.Delete(archive); } catch { }
+    }
+}

@@ -71,7 +71,20 @@ sealed class BackupManager(IWalWriter walWriter, Levels levels, string sstDir, s
             {
                 ct.ThrowIfCancellationRequested();
                 if (!File.Exists(f.Path)) continue;
-                var entryName = Path.Combine("sst", Path.GetFileName(f.Path)).Replace('\\', '/');
+
+                // Preserve the path relative to the configured sst directory so restore places files under L{n}/ etc.
+                string relativePath;
+                try
+                {
+                    relativePath = Path.GetRelativePath(_sstDir, f.Path);
+                }
+                catch
+                {
+                    // Fallback to filename only if relative path computation fails
+                    relativePath = Path.GetFileName(f.Path);
+                }
+
+                var entryName = Path.Combine("sst", relativePath).Replace('\\', '/');
                 var e = zip.CreateEntry(entryName, CompressionLevel.Optimal);
                 await using var es = e.Open();
                 await using var src = File.OpenRead(f.Path);
