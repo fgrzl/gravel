@@ -1,4 +1,6 @@
-﻿# Gravel
+[![CI](https://github.com/fgrzl/gravel/actions/workflows/ci.yml/badge.svg)](https://github.com/fgrzl/gravel/actions/workflows/ci.yml)
+[](url)
+ # Gravel
 
 A full-featured, production-oriented Log-Structured Merge (LSM) tree key-value store implemented in .NET — a complete embedded storage engine with reusable primitives and a focus on idiomatic, high-performance .NET code.
 
