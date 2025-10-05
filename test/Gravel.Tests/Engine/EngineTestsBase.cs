@@ -208,12 +208,17 @@ public abstract class EngineTestsBase
         await Engine.DeleteRangeAsync(B("a"), B("zzzz"));
 
         // Act
-        // Capture memtable from dbEngine via reflection-free route by starting a scan to identify same instance
-        // Instead, we can infer behavior by calling Get and checking that Scan() wasn't enumerated
-        // We rely on internal diagnostic counter ScanEnumerations in MemTable
-        var memTableField = typeof(DbEngine).GetField("_memTable", BindingFlags.NonPublic | BindingFlags.Instance);
-        memTableField.Should().NotBeNull();
-        var mem = (MemTable)memTableField!.GetValue(Engine)!;
+        // Capture memtable via reflection of the new private manager field: _memTableManager -> .MemTable
+        // We rely on the internal diagnostic counter ScanEnumerations in MemTable
+        var mgrField = typeof(DbEngine).GetField("_memTableManager", BindingFlags.NonPublic | BindingFlags.Instance);
+        mgrField.Should().NotBeNull();
+        var mgrInstance = mgrField!.GetValue(Engine);
+        mgrInstance.Should().NotBeNull();
+        var memProp = mgrInstance!.GetType().GetProperty("MemTable", BindingFlags.Public | BindingFlags.Instance);
+        memProp.Should().NotBeNull();
+        var mem = (MemTable)memProp!.GetValue(mgrInstance)!;
+
+        // record count before performing Get
         var before = mem.ScanEnumerations;
 
         // Call Get for a key that will be masked by range

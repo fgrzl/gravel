@@ -35,8 +35,6 @@ public class DbEngine : IDbEngine
     bool _disposed;
     bool _initialized;
     readonly MemTableManager _memTableManager = new();
-    // Backward-compatible field kept for tests and reflection access. Always synchronized with _memTableManager.MemTable.
-    MemTable _memTable;
     long _nextTxnId;
     ulong _seq; // in-memory sequence allocator base
 
@@ -71,11 +69,8 @@ public class DbEngine : IDbEngine
         _backup_manager = new BackupManager(_walWriter, _levels, _sstDir, _walDir, _logger);
 
         // Transaction manager orchestrates commits and memtable application.
-        // Keep compatibility field in sync
-        _memTable = _memTableManager.MemTable;
-
         _txnManager = new TransactionManager(
-            () => _memTableManager.GetMemTable(),
+            _memTableManager,
              _levels,
              _walWriter,
              _options,
@@ -156,8 +151,6 @@ public class DbEngine : IDbEngine
             }
 
             TelemetrySources.WalReplayed.Add(replayed);
-            // sync compatibility field after replay
-            _memTable = _memTableManager.MemTable;
             Log.WalReplayedDetailed(_logger, replayed, _memTableManager.MemTable.Count);
             _initialized = true;
         }
@@ -471,8 +464,6 @@ public class DbEngine : IDbEngine
         }
 
         _memTableManager.ResetMemTable();
-        // keep compatibility field in sync
-        _memTable = _memTableManager.MemTable;
 
         var r = await _sstFactory.CreateReaderAsync(path, ct).ConfigureAwait(false);
         _levels.Add(0, new SstFile(path, r, seqTag));

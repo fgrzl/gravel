@@ -13,7 +13,7 @@ namespace Gravel.Engine.Managers;
 
 internal sealed class TransactionManager
 {
-    readonly Func<MemTable> _getMemTable;
+    readonly MemTableManager _memTableManager;
     readonly Levels _levels;
     readonly IWalWriter _walWriter;
     readonly GravelOptions _options;
@@ -24,7 +24,7 @@ internal sealed class TransactionManager
     readonly Func<CancellationToken, ValueTask> _maybeFlushAsync;
 
     public TransactionManager(
-        Func<MemTable> getMemTable,
+        MemTableManager memTableManager,
         Levels levels,
         IWalWriter walWriter,
         GravelOptions options,
@@ -34,7 +34,7 @@ internal sealed class TransactionManager
         Func<ulong> allocateTxnId,
         Func<CancellationToken, ValueTask> maybeFlushAsync)
     {
-        _getMemTable = getMemTable ?? throw new ArgumentNullException(nameof(getMemTable));
+        _memTableManager = memTableManager ?? throw new ArgumentNullException(nameof(memTableManager));
         _levels = levels ?? throw new ArgumentNullException(nameof(levels));
         _walWriter = walWriter ?? throw new ArgumentNullException(nameof(walWriter));
         _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -69,7 +69,7 @@ internal sealed class TransactionManager
                         var id = Convert.ToBase64String(m.Key.ToArray());
                         if (seenKeys.Contains(id))
                             throw new GravelInvalidOperationException("Insert failed: key exists (txn)");
-                        if (_getMemTable().TryGet(m.Key.Span, out _, out _, out _))
+                        if (_memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out _))
                             throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
                         if (await KeyExistsInSstAsync(m.Key, ct).ConfigureAwait(false))
                             throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
@@ -111,10 +111,10 @@ internal sealed class TransactionManager
                 switch (a.Op)
                 {
                     case MutationOp.Put:
-                    case MutationOp.Insert: _getMemTable().Put(a.Key.Span, a.Value.Span, a.Sequence); break;
-                    case MutationOp.Delete: _getMemTable().PutDeleteTombstone(a.Key.Span, a.Sequence); break;
+                    case MutationOp.Insert: _memTableManager.MemTable.Put(a.Key.Span, a.Value.Span, a.Sequence); break;
+                    case MutationOp.Delete: _memTableManager.MemTable.PutDeleteTombstone(a.Key.Span, a.Sequence); break;
                     case MutationOp.DeleteRange:
-                        _getMemTable().PutRangeTombstone(a.Key.Span, a.RangeEnd.Span, a.Sequence); break;
+                        _memTableManager.MemTable.PutRangeTombstone(a.Key.Span, a.RangeEnd.Span, a.Sequence); break;
                     default:
                         throw new GravelArgumentOutOfRangeException();
                 }
@@ -170,7 +170,7 @@ internal sealed class TransactionManager
                         var id = Convert.ToBase64String(m.Key.ToArray());
                         if (seenKeys.Contains(id))
                             throw new GravelInvalidOperationException("Insert failed: key exists (batch)");
-                        if (_getMemTable().TryGet(m.Key.Span, out _, out _, out _))
+                        if (_memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out _))
                             throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
                         if (await KeyExistsInSstAsync(m.Key, ct).ConfigureAwait(false))
                             throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
@@ -211,10 +211,10 @@ internal sealed class TransactionManager
                 switch (a.Op)
                 {
                     case MutationOp.Put:
-                    case MutationOp.Insert: _getMemTable().Put(a.Key.Span, a.Value.Span, a.Sequence); break;
-                    case MutationOp.Delete: _getMemTable().PutDeleteTombstone(a.Key.Span, a.Sequence); break;
+                    case MutationOp.Insert: _memTableManager.MemTable.Put(a.Key.Span, a.Value.Span, a.Sequence); break;
+                    case MutationOp.Delete: _memTableManager.MemTable.PutDeleteTombstone(a.Key.Span, a.Sequence); break;
                     case MutationOp.DeleteRange:
-                        _getMemTable().PutRangeTombstone(a.Key.Span, a.RangeEnd.Span, a.Sequence); break;
+                        _memTableManager.MemTable.PutRangeTombstone(a.Key.Span, a.RangeEnd.Span, a.Sequence); break;
                     default:
                         throw new GravelArgumentOutOfRangeException();
                 }
@@ -255,7 +255,7 @@ internal sealed class TransactionManager
                 switch (m.Op)
                 {
                     case MutationOp.Insert:
-                        if (_getMemTable().TryGet(m.Key.Span, out _, out _, out _))
+                        if (_memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out _))
                             throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
                         if (await KeyExistsInSstAsync(m.Key, ct).ConfigureAwait(false))
                             throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
@@ -265,7 +265,7 @@ internal sealed class TransactionManager
                         await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct).ConfigureAwait(false);
                         break;
                     case MutationOp.Delete:
-                        existed = _getMemTable().TryGet(m.Key.Span, out _, out _, out var knd) && knd == DbEntryKind.Put;
+                        existed = _memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out var knd) && knd == DbEntryKind.Put;
                         await _walWriter.AppendAsync(txnId, DbEntry.DeleteKey(m.Key, seq), ct).ConfigureAwait(false);
                         break;
                     case MutationOp.DeleteRange:
@@ -280,9 +280,9 @@ internal sealed class TransactionManager
                 switch (m.Op)
                 {
                     case MutationOp.Put:
-                    case MutationOp.Insert: _getMemTable().Put(m.Key.Span, m.Value.Span, seq); break;
-                    case MutationOp.Delete: _getMemTable().PutDeleteTombstone(m.Key.Span, seq); break;
-                    case MutationOp.DeleteRange: _getMemTable().PutRangeTombstone(m.Key.Span, m.RangeEnd.Span, seq); break;
+                    case MutationOp.Insert: _memTableManager.MemTable.Put(m.Key.Span, m.Value.Span, seq); break;
+                    case MutationOp.Delete: _memTableManager.MemTable.PutDeleteTombstone(m.Key.Span, seq); break;
+                    case MutationOp.DeleteRange: _memTableManager.MemTable.PutRangeTombstone(m.Key.Span, m.RangeEnd.Span, seq); break;
                     default:
                         throw new GravelInvalidOperationException("Unknown mutation op");
                 }
