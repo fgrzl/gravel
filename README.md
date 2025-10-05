@@ -11,7 +11,6 @@ Key goals:
 - 🧰 Clear, reusable primitives for extensibility
 - 📈 Measured performance with microbenchmarks
 
-
 ## 🔧 Core implementation
 
 Look in `src/Gravel` for the concrete implementations. Notable components:
@@ -36,7 +35,6 @@ Look in `src/Gravel` for the concrete implementations. Notable components:
 - ⚙️ Compaction & background workers
   - Merge SSTables, apply tombstones/range deletes, produce compacted files; cancellable and observable worker tasks.
 
-
 ## ✨ Features
 
 - ❌✅ Insert semantics
@@ -55,31 +53,35 @@ Look in `src/Gravel` for the concrete implementations. Notable components:
 - ⚡ Performance-minded design
   - `Span<T>` / `Memory<T>` usage, `ArrayPool<byte>` pooling, and careful block layouts for cache efficiency.
 
-
 ## 🧾 API example (conceptual)
 
-Below is a short conceptual example demonstrating typical operations. Replace with concrete API calls from `src/Gravel` if you prefer code tied to the public surface.
+Below is a short conceptual example demonstrating typical operations. Start by creating the filesystem/store using `GravelFactory.CreateFileSystemAsync` (async). Replace later calls with concrete API calls from `src/Gravel` if you prefer code tied to the public surface.
 
 ```csharp
-// open or create a DB (conceptual)
-using var db = GravelDatabase.Open("./data");
+// conceptual async example
+public static async Task Main()
+{
+    // create/open the storage filesystem or runtime (starting point)
+    await using var store = await GravelFactory.CreateFileSystemAsync("./data");
 
-// Insert will fail if key exists
-var ok = db.Insert(keyBytes, valueBytes);
-if (!ok) Console.WriteLine("key exists");
+    // operations shown conceptually; replace with real store API
 
-// Put overwrites
-db.Put(keyBytes, valueBytes);
+    // Insert will fail if key exists
+    var inserted = await store.InsertAsync(keyBytes, valueBytes);
+    if (!inserted) Console.WriteLine("key exists");
 
-// Delete single key
-db.Delete(keyBytes);
+    // Put overwrites
+    await store.PutAsync(keyBytes, valueBytes);
 
-// Range delete
-db.RangeDelete(startKeyBytes, endKeyBytes);
+    // Delete single key
+    await store.DeleteAsync(keyBytes);
 
-// Atomic batch
-using var batch = db.CreateWriteBatch();
-batch.Put(k1, v1);
-batch.Delete(k2);
-db.ApplyBatch(batch); // durable and atomic
-```
+    // Range delete
+    await store.RangeDeleteAsync(startKeyBytes, endKeyBytes);
+
+    // Atomic batch (conceptual)
+    using var batch = store.CreateWriteBatch();
+    batch.Put(k1, v1);
+    batch.Delete(k2);
+    await store.ApplyBatchAsync(batch); // durable and atomic
+}
