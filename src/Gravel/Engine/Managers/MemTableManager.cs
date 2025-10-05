@@ -7,6 +7,8 @@ class MemTableManager
 {
     public MemTable MemTable { get; private set; } = new();
 
+    public int Count => MemTable.Count;
+
     public void ApplyStagedEntries(List<DbEntry> staging)
     {
         foreach (var e in staging)
@@ -48,5 +50,35 @@ class MemTableManager
     public void ResetMemTable()
     {
         MemTable = new MemTable();
+    }
+
+    // New helpers to avoid external code directly touching MemTable
+    public bool ContainsKey(ReadOnlyMemory<byte> key)
+    {
+        return MemTable.TryGet(key.Span, out _, out _, out _);
+    }
+
+    public bool IsPut(ReadOnlyMemory<byte> key)
+    {
+        return MemTable.TryGet(key.Span, out _, out _, out var kind) && kind == DbEntryKind.Put;
+    }
+
+    public void ApplyEntry(DbEntry e)
+    {
+        ApplyStagedEntries(new List<DbEntry> { e });
+    }
+
+    public bool TryGetCoveringRange(ReadOnlySpan<byte> key, out ulong coveringSeq)
+    {
+        return MemTable.TryGetCoveringRange(key, out coveringSeq);
+    }
+
+    public bool TryGet(ReadOnlySpan<byte> key, out ReadOnlyMemory<byte>? value, out ulong seq, out DbEntryKind kind)
+    {
+        var found = MemTable.TryGet(key, out var v, out var s, out var k);
+        value = v;
+        seq = s;
+        kind = k;
+        return found;
     }
 }

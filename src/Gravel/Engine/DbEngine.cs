@@ -26,6 +26,7 @@ public class DbEngine : IDbEngine
     readonly GravelOptions _options;
     readonly string _sstDir;
     readonly ISstFactory _sstFactory;
+    readonly SstManager _sstManager;
     readonly string _walDir;
     readonly WalManager _walManager;
     readonly IWalWriter _walWriter;
@@ -80,6 +81,9 @@ public class DbEngine : IDbEngine
              () => NextSeq(ref _seq),
              () => (ulong)Interlocked.Increment(ref _nextTxnId),
              FlushMemTableAsync);
+
+        // SstManager consolidates direct interactions with SST readers/writers
+        _sstManager = new SstManager(sstFactory, _levels, _sstDir, _logger);
     }
 
     public async ValueTask InitializeAsync(CancellationToken ct = default)
@@ -98,23 +102,8 @@ public class DbEngine : IDbEngine
                 new KeyValuePair<string, object?>("sst.dir", _sstDir));
 
             Log.DbOpening(_logger, _options.DatabasePath);
-            for (var l = 0; ; l++)
-            {
-                if (l >= _levelsSnapshotCount()) break;
-                // ask factory for level files instead of reading filesystem here
-                var files = _sstFactory.EnumerateLevelFiles(_sstDir, l);
-                foreach (var f in files)
-                    try
-                    {
-                        var r = await _sstFactory.CreateReaderAsync(f, ct).ConfigureAwait(false);
-                        _levels.Add(l, new SstFile(f, r, 0));
-                        Log.SstLoaded(_logger, l, f);
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.SstLoadFailed(_logger, f, ex.Message);
-                    }
-            }
+            // Delegate loading existing SST files to the SstManager
+            await _sstManager.LoadExistingAsync(ct).ConfigureAwait(false);
 
             // Replay WAL into memtable using WalManager to keep DbEngine slim
             var replayed = await _walManager.ReplayIntoMemTableAsync(_memTableManager, ct).ConfigureAwait(false);
@@ -407,31 +396,22 @@ public class DbEngine : IDbEngine
     async ValueTask FlushMemTableAsync(CancellationToken ct)
     {
         var seqTag = _walManager.LastSequence;
-        var dir = Path.Combine(_sstDir, "L0");
-        // Directory.CreateDirectory(dir); // removed: let factory handle directory creation
-        var path = Path.Combine(dir, $"{seqTag:D20}.sst");
         var mt = _memTableManager.GetMemTable();
 
         using var act = TelemetryHelper.StartActivityScope(TelemetrySources.ActivitySource, _logger,
             "Flush.MemTable");
-        act?.SetTag("sst.path", path);
         act?.SetTag("entries", mt.Count);
 
         Log.FlushEnqueued(_logger, mt.Count);
-        await using (var w = await _sstFactory.CreateWriterAsync(path, mt.Count, ct).ConfigureAwait(false))
-        {
-            await w.WriteAsync(EnumerateMemTableEntriesAsync(mt, ct), ct).ConfigureAwait(false);
-        }
+
+        // Delegate SST write/reader installation to SstManager
+        var sst = await _sstManager.WriteMemTableAsync(mt, seqTag, ct).ConfigureAwait(false);
 
         _memTableManager.ResetMemTable();
 
-        var r = await _sstFactory.CreateReaderAsync(path, ct).ConfigureAwait(false);
-        _levels.Add(0, new SstFile(path, r, seqTag));
-
         TelemetrySources.Flushes.Add(1);
         TelemetrySources.FlushSize.Record(mt.Count);
-        Log.SstCreated(_logger, path);
-        Log.FlushComplete(_logger, path, seqTag);
+        act?.SetTag("sst.path", sst.Path);
 
         await MaybeCompactAsync(ct).ConfigureAwait(false);
     }
@@ -487,7 +467,7 @@ public class DbEngine : IDbEngine
                 Compactor.EstimateMergedCount(to), async (p, inputs) =>
                 {
                     // callback invoked on task success: install new SST and remove inputs atomically
-                    var newR = await _sstFactory.CreateReaderAsync(p, ct).ConfigureAwait(false);
+                    var newR = await _sstManager.CreateReaderAsync(p, ct).ConfigureAwait(false);
                     _levels.ApplyCompaction(l, inputs, next, new SstFile(p, newR, 0));
 
                     foreach (var f in inputs)

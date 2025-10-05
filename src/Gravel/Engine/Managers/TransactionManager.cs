@@ -11,39 +11,26 @@ using Microsoft.Extensions.Logging;
 
 namespace Gravel.Engine.Managers;
 
-internal sealed class TransactionManager
+internal sealed class TransactionManager(
+    MemTableManager memTableManager,
+    Levels levels,
+    IWalWriter walWriter,
+    GravelOptions options,
+    SemaphoreSlim commitGate,
+    ILogger logger,
+    Func<ulong> allocateSeq,
+    Func<ulong> allocateTxnId,
+    Func<CancellationToken, ValueTask> maybeFlushAsync)
 {
-    readonly MemTableManager _memTableManager;
-    readonly Levels _levels;
-    readonly IWalWriter _walWriter;
-    readonly GravelOptions _options;
-    readonly SemaphoreSlim _commitGate;
-    readonly ILogger _logger;
-    readonly Func<ulong> _allocateSeq;
-    readonly Func<ulong> _allocateTxnId;
-    readonly Func<CancellationToken, ValueTask> _maybeFlushAsync;
-
-    public TransactionManager(
-        MemTableManager memTableManager,
-        Levels levels,
-        IWalWriter walWriter,
-        GravelOptions options,
-        SemaphoreSlim commitGate,
-        ILogger logger,
-        Func<ulong> allocateSeq,
-        Func<ulong> allocateTxnId,
-        Func<CancellationToken, ValueTask> maybeFlushAsync)
-    {
-        _memTableManager = memTableManager ?? throw new ArgumentNullException(nameof(memTableManager));
-        _levels = levels ?? throw new ArgumentNullException(nameof(levels));
-        _walWriter = walWriter ?? throw new ArgumentNullException(nameof(walWriter));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-        _commitGate = commitGate ?? throw new ArgumentNullException(nameof(commitGate));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _allocateSeq = allocateSeq ?? throw new ArgumentNullException(nameof(allocateSeq));
-        _allocateTxnId = allocateTxnId ?? throw new ArgumentNullException(nameof(allocateTxnId));
-        _maybeFlushAsync = maybeFlushAsync ?? throw new ArgumentNullException(nameof(maybeFlushAsync));
-    }
+    readonly MemTableManager _memTableManager = memTableManager ?? throw new ArgumentNullException(nameof(memTableManager));
+    readonly Levels _levels = levels ?? throw new ArgumentNullException(nameof(levels));
+    readonly IWalWriter _walWriter = walWriter ?? throw new ArgumentNullException(nameof(walWriter));
+    readonly GravelOptions _options = options ?? throw new ArgumentNullException(nameof(options));
+    readonly SemaphoreSlim _commitGate = commitGate ?? throw new ArgumentNullException(nameof(commitGate));
+    readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    readonly Func<ulong> _allocateSeq = allocateSeq ?? throw new ArgumentNullException(nameof(allocateSeq));
+    readonly Func<ulong> _allocateTxnId = allocateTxnId ?? throw new ArgumentNullException(nameof(allocateTxnId));
+    readonly Func<CancellationToken, ValueTask> _maybeFlushAsync = maybeFlushAsync ?? throw new ArgumentNullException(nameof(maybeFlushAsync));
 
     public async ValueTask CommitTransactionAsync(Transaction txn, IReadOnlyList<Mutation> staged, CancellationToken ct)
     {
@@ -69,7 +56,7 @@ internal sealed class TransactionManager
                         var id = Convert.ToBase64String(m.Key.ToArray());
                         if (seenKeys.Contains(id))
                             throw new GravelInvalidOperationException("Insert failed: key exists (txn)");
-                        if (_memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out _))
+                        if (_memTableManager.ContainsKey(m.Key))
                             throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
                         if (await KeyExistsInSstAsync(m.Key, ct).ConfigureAwait(false))
                             throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
@@ -161,7 +148,7 @@ internal sealed class TransactionManager
                         var id = Convert.ToBase64String(m.Key.ToArray());
                         if (seenKeys.Contains(id))
                             throw new GravelInvalidOperationException("Insert failed: key exists (batch)");
-                        if (_memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out _))
+                        if (_memTableManager.ContainsKey(m.Key))
                             throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
                         if (await KeyExistsInSstAsync(m.Key, ct).ConfigureAwait(false))
                             throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
@@ -236,7 +223,7 @@ internal sealed class TransactionManager
                 switch (m.Op)
                 {
                     case MutationOp.Insert:
-                        if (_memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out _))
+                        if (_memTableManager.ContainsKey(m.Key))
                             throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
                         if (await KeyExistsInSstAsync(m.Key, ct).ConfigureAwait(false))
                             throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
@@ -246,7 +233,7 @@ internal sealed class TransactionManager
                         await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct).ConfigureAwait(false);
                         break;
                     case MutationOp.Delete:
-                        existed = _memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out var knd) && knd == DbEntryKind.Put;
+                        existed = _memTableManager.IsPut(m.Key);
                         await _walWriter.AppendAsync(txnId, DbEntry.DeleteKey(m.Key, seq), ct).ConfigureAwait(false);
                         break;
                     case MutationOp.DeleteRange:
