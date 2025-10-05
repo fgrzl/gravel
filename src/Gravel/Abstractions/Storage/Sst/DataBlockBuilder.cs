@@ -1,5 +1,6 @@
 ﻿using System.Buffers.Binary;
 using Gravel.Internals;
+using System.Buffers;
 
 namespace Gravel.Abstractions.Storage.Sst;
 
@@ -48,17 +49,65 @@ sealed class DataBlockBuilder(int restartInterval = 16)
 
     public byte[] Finish()
     {
+        // fallback convenience: produce a new array (compatible with existing callers)
+        var totalLen = (int)_buf.Length + _restarts.Count * 4 + 4;
+        var result = new byte[totalLen];
+        _buf.Position = 0;
+        _buf.Read(result, 0, (int)_buf.Length);
+        var offset = (int)_buf.Length;
+
         Span<byte> tmp = stackalloc byte[4];
         foreach (var off in _restarts)
         {
             BinaryPrimitives.WriteInt32LittleEndian(tmp, off);
-            _buf.Write(tmp);
+            tmp.CopyTo(result.AsSpan(offset, 4));
+            offset += 4;
         }
 
         Span<byte> cnt = stackalloc byte[4];
         BinaryPrimitives.WriteInt32LittleEndian(cnt, _restarts.Count);
-        _buf.Write(cnt);
-        return _buf.ToArray();
+        cnt.CopyTo(result.AsSpan(offset, 4));
+
+        return result;
+    }
+
+    // Pooled result to avoid allocating the final array. Caller must return the buffer when done.
+    public struct PooledBuffer
+    {
+        public byte[] Buffer { get; }
+        public int Length { get; }
+        public PooledBuffer(byte[] buffer, int length) { Buffer = buffer; Length = length; }
+    }
+
+    public PooledBuffer FinishPooled()
+    {
+        var totalLen = (int)_buf.Length + _restarts.Count * 4 + 4;
+        var pooled = ArrayPool<byte>.Shared.Rent(totalLen);
+        try
+        {
+            _buf.Position = 0;
+            var read = _buf.Read(pooled, 0, (int)_buf.Length);
+            var offset = read;
+
+            Span<byte> tmp = stackalloc byte[4];
+            foreach (var off in _restarts)
+            {
+                BinaryPrimitives.WriteInt32LittleEndian(tmp, off);
+                tmp.CopyTo(pooled.AsSpan(offset, 4));
+                offset += 4;
+            }
+
+            Span<byte> cnt = stackalloc byte[4];
+            BinaryPrimitives.WriteInt32LittleEndian(cnt, _restarts.Count);
+            cnt.CopyTo(pooled.AsSpan(offset, 4));
+
+            return new PooledBuffer(pooled, totalLen);
+        }
+        catch
+        {
+            ArrayPool<byte>.Shared.Return(pooled);
+            throw;
+        }
     }
 
     public void Reset()

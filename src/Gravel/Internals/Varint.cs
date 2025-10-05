@@ -41,6 +41,24 @@ public static class Varint
         throw new FormatException("Malformed varint32");
     }
 
+    public static uint Read32(ReadOnlySpan<byte> span, ref int pos)
+    {
+        uint result = 0;
+        var shift = 0;
+
+        // varint32 max length is 5 bytes
+        for (var i = 0; i < 5; i++)
+        {
+            if (pos >= span.Length) throw new EndOfStreamException("Unexpected end of span while reading varint32");
+            var b = span[pos++];
+            result |= (uint)(b & 0x7F) << shift;
+            if ((b & 0x80) == 0) return result;
+            shift += 7;
+        }
+
+        throw new FormatException("Malformed varint32");
+    }
+
     public static ulong Read64(ref ReadOnlySpan<byte> span)
     {
         ulong result = 0;

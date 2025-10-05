@@ -123,7 +123,7 @@ public sealed class FileSstReader : ISstReader
         if (found >= 0)
         {
             var handle = _indexEntries[found].handle;
-            var block = await ReadBlock(handle).ConfigureAwait(false);
+            var block = await ReadBlockAsync(handle).ConfigureAwait(false);
             foreach (var e in ParseDataBlockOwned(block))
             {
                 var cmp = ByteComparer.Compare(e.Key.Span, key.Span);
@@ -148,7 +148,7 @@ public sealed class FileSstReader : ISstReader
 
         foreach (var (_, handle) in _indexEntries)
         {
-            var block = await ReadBlock(handle).ConfigureAwait(false);
+            var block = await ReadBlockAsync(handle).ConfigureAwait(false);
             foreach (var e in ParseDataBlockOwned(block))
             {
                 ct.ThrowIfCancellationRequested();
@@ -164,23 +164,23 @@ public sealed class FileSstReader : ISstReader
 
     async Task InitializeInternalAsync()
     {
-        var metaRaw = await ReadBlock(_metaHandle).ConfigureAwait(false);
+        var metaRaw = await ReadBlockAsync(_metaHandle).ConfigureAwait(false);
         foreach (var (k, v) in ParseKeyValueBlock(metaRaw))
             _metaHandles[Encoding.ASCII.GetString(k)] = DecodeBlockHandle(v);
 
         if (_metaHandles.TryGetValue("filter.full", out var fh))
         {
-            var fb = await ReadBlock(fh).ConfigureAwait(false);
+            var fb = await ReadBlockAsync(fh).ConfigureAwait(false);
             _filter = new FullFilter(fb);
         }
 
         if (_metaHandles.TryGetValue("range.delete", out var rdh))
         {
-            var rdb = await ReadBlock(rdh).ConfigureAwait(false);
+            var rdb = await ReadBlockAsync(rdh).ConfigureAwait(false);
             _rangeDeletes.AddRange(ParseRangeDeleteBlock(rdb));
         }
 
-        var indexRaw = await ReadBlock(_indexHandle).ConfigureAwait(false);
+        var indexRaw = await ReadBlockAsync(_indexHandle).ConfigureAwait(false);
         foreach (var (k, v) in ParseKeyValueBlock(indexRaw))
             _indexEntries.Add((k, DecodeBlockHandle(v)));
     }
@@ -196,7 +196,7 @@ public sealed class FileSstReader : ISstReader
         return new BlockHandle(off, size);
     }
 
-    async Task<byte[]> ReadBlock(BlockHandle handle)
+    async ValueTask<byte[]> ReadBlockAsync(BlockHandle handle)
     {
         _stream.Seek((long)handle.Offset, SeekOrigin.Begin);
         var len = (int)handle.Size;
