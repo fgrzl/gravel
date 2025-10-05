@@ -7,6 +7,11 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+  packages: write
+  actions: write
+
 jobs:
   build:
     strategy:
@@ -36,3 +41,8 @@ jobs:
 
       - name: Test
         run: dotnet test -c Release --no-build --no-restore --verbosity minimal
+
+      - name: Workflow Cleanup
+        uses: fgrzl/actions/workflow-cleanup@v0.0.5
+        with:
+            days_old: 1
