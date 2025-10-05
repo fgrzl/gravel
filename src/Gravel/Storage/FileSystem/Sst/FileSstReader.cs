@@ -151,6 +151,94 @@ public sealed class FileSstReader : ISstReader
         }
     }
 
+    /// <summary>
+    /// Reads a block from the SST file, decompresses and validates its contents.
+    /// </summary>
+    /// <param name="handle">The block handle specifying offset and size.</param>
+    /// <returns>The decompressed block as a byte array.</returns>
+    async ValueTask<byte[]> ReadBlockAsync(BlockHandle handle)
+    {
+        _stream.Seek((long)handle.Offset, SeekOrigin.Begin);
+        var len = (int)handle.Size;
+
+        using var scope = Buf.AsyncRent(len);
+        var buf = scope.Memory;
+        await _stream.ReadExactlyAsync(buf).ConfigureAwait(false);
+
+        const int trailerLen = 5;
+        var dataLen = len - trailerLen;
+        var compType = buf.Span[dataLen];
+        var storedCrc = BinaryPrimitives.ReadUInt32LittleEndian(buf.Span.Slice(dataLen + 1, 4));
+
+        ValidateBlockCrc(buf.Span[..dataLen], compType, storedCrc);
+
+        return compType switch
+        {
+            (byte)CompressionKind.None => CopyUncompressedBlock(buf.Span[..dataLen]),
+            (byte)CompressionKind.Snappy => DecompressSnappyBlock(buf.Span[..dataLen]),
+            _ => throw new NotSupportedException($"Compression {compType} not supported")
+        };
+    }
+
+    /// <summary>
+    /// Validates the CRC32C checksum of a block.
+    /// </summary>
+    /// <param name="data">The block data.</param>
+    /// <param name="compType">The compression type byte.</param>
+    /// <param name="expectedCrc">The expected CRC value.</param>
+    static void ValidateBlockCrc(ReadOnlySpan<byte> data, byte compType, uint expectedCrc)
+    {
+        using var scope = Buf.AsyncRent(data.Length + 1);
+        var crcInput = scope.Span;
+        data.CopyTo(crcInput);
+        crcInput[^1] = compType;
+        var actualCrc = Crc32C.Compute(crcInput);
+        if (actualCrc != expectedCrc)
+            throw new InvalidDataException("CRC mismatch in block");
+    }
+
+    /// <summary>
+    /// Copies an uncompressed block into a new byte array.
+    /// </summary>
+    /// <param name="data">The block data.</param>
+    /// <returns>A new byte array containing the block data.</returns>
+    static byte[] CopyUncompressedBlock(ReadOnlySpan<byte> data)
+    {
+        using var scope = Buf.AsyncRent(data.Length);
+        var pooled = scope.Span;
+        data.CopyTo(pooled);
+        var result = new byte[data.Length];
+        pooled[..data.Length].CopyTo(result);
+        return result;
+    }
+
+    /// <summary>
+    /// Decompresses a block using Snappy compression.
+    /// </summary>
+    /// <param name="data">The compressed block data.</param>
+    /// <returns>The decompressed block as a byte array.</returns>
+    byte[] DecompressSnappyBlock(ReadOnlySpan<byte> data)
+    {
+        var compressor = _compressorFactory.Get(CompressionKind.Snappy);
+        if (!compressor.TryGetDecompressedLength(data, out var rawLen))
+            return compressor.Decompress(data);
+
+        using var scope = Buf.AsyncRent(rawLen);
+        var pooled = scope.Span;
+        if (!compressor.TryDecompress(data, pooled, out var written) || written != rawLen)
+            return compressor.Decompress(data);
+
+        var result = new byte[rawLen];
+        pooled[..rawLen].CopyTo(result);
+        return result;
+        // fallback to legacy API
+    }
+
+    /// <summary>
+    /// Finds the index entry for a given key using binary search.
+    /// </summary>
+    /// <param name="key">The key to search for.</param>
+    /// <returns>The index of the entry if found; otherwise, -1.</returns>
     int FindIndexEntry(ReadOnlySpan<byte> key)
     {
         int lo = 0, hi = _indexEntries.Count - 1, found = -1;
@@ -169,6 +257,13 @@ public sealed class FileSstReader : ISstReader
         return found;
     }
 
+    /// <summary>
+    /// Searches for a matching entry in a data block using lightweight parsing.
+    /// Only materializes a <see cref="DbEntry"/> if a match is found.
+    /// </summary>
+    /// <param name="block">The SST data block buffer.</param>
+    /// <param name="key">The key to search for.</param>
+    /// <returns>The matching <see cref="DbEntry"/> if found; otherwise, null.</returns>
     DbEntry? FindEntryInBlock(byte[] block, ReadOnlySpan<byte> key)
     {
         // Iterate using light entries and materialize only on match
@@ -223,6 +318,11 @@ public sealed class FileSstReader : ISstReader
     // Helpers
     // ---------------------------------------------------------------------
 
+    /// <summary>
+    /// Decodes a <see cref="BlockHandle"/> from a span containing varint-encoded offset and size.
+    /// </summary>
+    /// <param name="span">The span containing the encoded block handle.</param>
+    /// <returns>The decoded <see cref="BlockHandle"/>.</returns>
     static BlockHandle DecodeBlockHandle(ReadOnlySpan<byte> span)
     {
         var off = VarInt.Read64(ref span);
@@ -230,68 +330,11 @@ public sealed class FileSstReader : ISstReader
         return new BlockHandle(off, size);
     }
 
-    async ValueTask<byte[]> ReadBlockAsync(BlockHandle handle)
-    {
-        _stream.Seek((long)handle.Offset, SeekOrigin.Begin);
-        var len = (int)handle.Size;
-
-        using var scope = Buf.AsyncRent(len);
-        var buf = scope.Memory;
-        await _stream.ReadExactlyAsync(buf).ConfigureAwait(false);
-
-        const int trailerLen = 5;
-        var dataLen = len - trailerLen;
-        var compType = buf.Span[dataLen];
-        var storedCrc = BinaryPrimitives.ReadUInt32LittleEndian(buf.Span.Slice(dataLen + 1, 4));
-
-        ValidateBlockCrc(buf.Span[..dataLen], compType, storedCrc);
-
-        return compType switch
-        {
-            (byte)CompressionKind.None => CopyUncompressedBlock(buf.Span[..dataLen]),
-            (byte)CompressionKind.Snappy => DecompressSnappyBlock(buf.Span[..dataLen]),
-            _ => throw new NotSupportedException($"Compression {compType} not supported")
-        };
-    }
-
-    static void ValidateBlockCrc(ReadOnlySpan<byte> data, byte compType, uint expectedCrc)
-    {
-        using var scope = Buf.AsyncRent(data.Length + 1);
-        var crcInput = scope.Span;
-        data.CopyTo(crcInput);
-        crcInput[^1] = compType;
-        var actualCrc = Crc32C.Compute(crcInput);
-        if (actualCrc != expectedCrc)
-            throw new InvalidDataException("CRC mismatch in block");
-    }
-
-    static byte[] CopyUncompressedBlock(ReadOnlySpan<byte> data)
-    {
-        using var scope = Buf.AsyncRent(data.Length);
-        var pooled = scope.Span;
-        data.CopyTo(pooled);
-        var result = new byte[data.Length];
-        pooled[..data.Length].CopyTo(result);
-        return result;
-    }
-
-    byte[] DecompressSnappyBlock(ReadOnlySpan<byte> data)
-    {
-        var compressor = _compressorFactory.Get(CompressionKind.Snappy);
-        if (!compressor.TryGetDecompressedLength(data, out var rawLen))
-            return compressor.Decompress(data);
-
-        using var scope = Buf.AsyncRent(rawLen);
-        var pooled = scope.Span;
-        if (!compressor.TryDecompress(data, pooled, out var written) || written != rawLen)
-            return compressor.Decompress(data);
-
-        var result = new byte[rawLen];
-        pooled[..rawLen].CopyTo(result);
-        return result;
-        // fallback to legacy API
-    }
-
+    /// <summary>
+    /// Parses a key-value block from SST metadata or index.
+    /// </summary>
+    /// <param name="raw">The raw block buffer.</param>
+    /// <returns>A list of key-value pairs as byte arrays.</returns>
     static List<(byte[] key, byte[] value)> ParseKeyValueBlock(byte[] raw)
     {
         var list = new List<(byte[], byte[])>();
@@ -312,6 +355,11 @@ public sealed class FileSstReader : ISstReader
         return list;
     }
 
+    /// <summary>
+    /// Parses a range delete block from SST metadata.
+    /// </summary>
+    /// <param name="raw">The raw block buffer.</param>
+    /// <returns>A sequence of range tombstones (start, end, sequence).</returns>
     static IEnumerable<(byte[] Start, byte[] End, ulong Seq)> ParseRangeDeleteBlock(byte[] raw)
     {
         var list = new List<(byte[], byte[], ulong)>();
@@ -340,6 +388,17 @@ public sealed class FileSstReader : ISstReader
     // Data block parser (lightweight with DbEntryLight, materialize on demand)
     // ---------------------------------------------------------------------
 
+    /// <summary>
+    /// Attempts to parse the next entry in an SST data block as a lightweight <see cref="DbEntryLight"/>.
+    /// This avoids heap allocations by using stack-allocated buffers and spans.
+    /// </summary>
+    /// <param name="raw">The raw SST data block buffer.</param>
+    /// <param name="restartsOff">Offset to the restart array (end of entries).</param>
+    /// <param name="pos">Current position in the buffer (updated on success).</param>
+    /// <param name="keyBuf">Stack-allocated buffer for key reconstruction.</param>
+    /// <param name="keyLen">Current key length (updated on success).</param>
+    /// <param name="entry">The parsed <see cref="DbEntryLight"/> if successful.</param>
+    /// <returns>True if an entry was parsed (may be malformed); false if end of block.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool TryReadNextEntryLight(byte[] raw, int restartsOff, ref int pos, byte[] keyBuf, ref int keyLen, out DbEntryLight entry)
     {
@@ -389,6 +448,12 @@ public sealed class FileSstReader : ISstReader
     // Range masking
     // ---------------------------------------------------------------------
 
+    /// <summary>
+    /// Determines if a key is masked by any range tombstone with a higher sequence number.
+    /// </summary>
+    /// <param name="key">The key to check.</param>
+    /// <param name="seq">The sequence number to compare against.</param>
+    /// <returns>True if the key is masked by a range tombstone; otherwise, false.</returns>
     bool IsMaskedByRange(ReadOnlySpan<byte> key, ulong seq)
     {
         if (_rangeDeletes.Count == 0) return false;
