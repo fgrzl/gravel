@@ -1,6 +1,6 @@
-﻿using System.Buffers.Binary;
+﻿using System.Buffers;
+using System.Buffers.Binary;
 using Gravel.Internals;
-using System.Buffers;
 
 namespace Gravel.Abstractions.Storage.Sst;
 
@@ -71,14 +71,6 @@ sealed class DataBlockBuilder(int restartInterval = 16)
         return result;
     }
 
-    // Pooled result to avoid allocating the final array. Caller must return the buffer when done.
-    public struct PooledBuffer
-    {
-        public byte[] Buffer { get; }
-        public int Length { get; }
-        public PooledBuffer(byte[] buffer, int length) { Buffer = buffer; Length = length; }
-    }
-
     public PooledBuffer FinishPooled()
     {
         var totalLen = (int)_buf.Length + _restarts.Count * 4 + 4;
@@ -117,5 +109,12 @@ sealed class DataBlockBuilder(int restartInterval = 16)
         _restarts.Add(0);
         _entrySinceRestart = 0;
         _prevKey = [];
+    }
+
+    // Pooled result to avoid allocating the final array. Caller must return the buffer when done.
+    public struct PooledBuffer(byte[] buffer, int length)
+    {
+        public byte[] Buffer { get; } = buffer;
+        public int Length { get; } = length;
     }
 }

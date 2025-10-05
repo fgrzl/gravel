@@ -10,12 +10,13 @@ using Gravel.Internals;
 using Gravel.Internals.Compaction;
 using Gravel.Logging;
 using Gravel.Telemetry;
+using Gravel.Engine.Managers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Gravel.Engine;
 
-class DbEngine : IDbEngine
+public class DbEngine : IDbEngine
 {
     readonly SemaphoreSlim _commitGate = new(1, 1);
     readonly ICompactionWorker _compactionWorker;
@@ -28,10 +29,14 @@ class DbEngine : IDbEngine
     readonly string _walDir;
     readonly IWalFactory _walFactory;
     readonly IWalWriter _walWriter;
+    readonly BackupManager _backup_manager;
+    readonly TransactionManager _txnManager;
 
     bool _disposed;
     bool _initialized;
-    MemTable _memTable = new();
+    readonly MemTableManager _memTableManager = new();
+    // Backward-compatible field kept for tests and reflection access. Always synchronized with _memTableManager.MemTable.
+    MemTable _memTable;
     long _nextTxnId;
     ulong _seq; // in-memory sequence allocator base
 
@@ -62,6 +67,23 @@ class DbEngine : IDbEngine
 
         _compactionWorker = compactionWorker;
         Log.EngineCreated(_logger, _options.DatabasePath, _walDir, _sstDir, levelCount);
+
+        _backup_manager = new BackupManager(_walWriter, _levels, _sstDir, _walDir, _logger);
+
+        // Transaction manager orchestrates commits and memtable application.
+        // Keep compatibility field in sync
+        _memTable = _memTableManager.MemTable;
+
+        _txnManager = new TransactionManager(
+            () => _memTableManager.GetMemTable(),
+             _levels,
+             _walWriter,
+             _options,
+             _commitGate,
+             _logger,
+             () => NextSeq(ref _seq),
+             () => (ulong)Interlocked.Increment(ref _nextTxnId),
+             FlushMemTableAsync);
     }
 
     public async ValueTask InitializeAsync(CancellationToken ct = default)
@@ -119,10 +141,10 @@ class DbEngine : IDbEngine
                         foreach (var e in staging)
                             switch (e.Kind)
                             {
-                                case DbEntryKind.Put: _memTable.Put(e.Key.Span, e.Value.Span, e.Sequence); break;
-                                case DbEntryKind.DeleteKey: _memTable.PutDeleteTombstone(e.Key.Span, e.Sequence); break;
+                                case DbEntryKind.Put: _memTableManager.MemTable.Put(e.Key.Span, e.Value.Span, e.Sequence); break;
+                                case DbEntryKind.DeleteKey: _memTableManager.MemTable.PutDeleteTombstone(e.Key.Span, e.Sequence); break;
                                 case DbEntryKind.DeleteRange:
-                                    _memTable.PutRangeTombstone(e.Key.Span, e.Value.Span, e.Sequence); break;
+                                    _memTableManager.MemTable.PutRangeTombstone(e.Key.Span, e.Value.Span, e.Sequence); break;
                                 default:
                                     throw new GravelArgumentOutOfRangeException();
                             }
@@ -134,7 +156,9 @@ class DbEngine : IDbEngine
             }
 
             TelemetrySources.WalReplayed.Add(replayed);
-            Log.WalReplayedDetailed(_logger, replayed, _memTable.Count);
+            // sync compatibility field after replay
+            _memTable = _memTableManager.MemTable;
+            Log.WalReplayedDetailed(_logger, replayed, _memTableManager.MemTable.Count);
             _initialized = true;
         }
         finally
@@ -173,10 +197,10 @@ class DbEngine : IDbEngine
         await EnsureInitializedAsync(ct);
 
         // Find latest range tombstone in memtable covering this key using range index (O(log n))
-        _memTable.TryGetCoveringRange(key.Span, out var coveringRangeSeq);
+        _memTableManager.GetMemTable().TryGetCoveringRange(key.Span, out var coveringRangeSeq);
 
         // Check memtable direct entry for this key
-        if (_memTable.TryGet(key.Span, out var mtValue, out var mtSeq, out var mtKind))
+        if (_memTableManager.GetMemTable().TryGet(key.Span, out var mtValue, out var mtSeq, out var mtKind))
         {
             if (mtKind != DbEntryKind.Put)
                 return null;
@@ -299,7 +323,7 @@ class DbEngine : IDbEngine
         act?.SetTag("scan.limit", query.Limit ?? -1);
 
         Log.ScanCalled(_logger, query.Start?.Length, query.End?.Length, query.Limit);
-        var sources = new List<IScanSource> { new MemTableScanSource(_memTable, 0, query.Start, query.End) };
+        var sources = new List<IScanSource> { new MemTableScanSource(_memTableManager.GetMemTable(), 0, query.Start, query.End) };
         var lvlSnap = _levels.SnapshotLevels();
 
         for (var l = 0; l < lvlSnap.Count; l++)
@@ -392,81 +416,7 @@ class DbEngine : IDbEngine
         options ??= new BackupOptions();
         await EnsureInitializedAsync(ct);
 
-        // Short snapshot window: prevent commits while we capture lastSequence and level snapshot
-        await _commitGate.WaitAsync(ct);
-        try
-        {
-            if (options.ForceMemTableFlush)
-                // Force flush memtable to SST so backup includes all in-memory data
-                await FlushMemTableAsync(ct);
-
-            // Ensure WAL is durable
-            try
-            {
-                await _walWriter.FlushAsync(ct);
-            }
-            catch
-            {
-                /* best-effort */
-            }
-
-            var lastSeq = _walWriter.LastSequence;
-            var sstSnapshot = _levels.SnapshotAll();
-
-            // Build manifest
-            var manifest = new
-            {
-                formatVersion = 1,
-                createdAt = DateTimeOffset.UtcNow,
-                lastSequence = lastSeq,
-                sst = sstSnapshot.Select(f => new { path = f.Path, seq = f.SequenceTag, level = 0 }).ToList(),
-                wal = options.IncludeWalSegments ? new List<object>() : null
-            };
-
-            // Create zip archive (manifest + files)
-            await using var fs = File.Create(destinationPath);
-            // Use a ZipArchive directly; compression is controlled per-entry
-            using var zip = new ZipArchive(fs, ZipArchiveMode.Create, false);
-            // Write manifest.json entry
-            var manifestBytes =
-                JsonSerializer.SerializeToUtf8Bytes(manifest, new JsonSerializerOptions { WriteIndented = true });
-            var mEntry = zip.CreateEntry("manifest.json", CompressionLevel.Optimal);
-            await using (var mStream = mEntry.Open())
-            {
-                await mStream.WriteAsync(manifestBytes, ct).ConfigureAwait(false);
-            }
-
-            // Add SST files
-            foreach (var f in sstSnapshot)
-            {
-                ct.ThrowIfCancellationRequested();
-                if (!File.Exists(f.Path)) continue;
-                var entryName = Path.Combine("sst", Path.GetFileName(f.Path)).Replace('\\', '/');
-                var e = zip.CreateEntry(entryName, CompressionLevel.Optimal);
-                await using var es = e.Open();
-                await using var src = File.OpenRead(f.Path);
-                await src.CopyToAsync(es, ct).ConfigureAwait(false);
-            }
-
-            // Add WAL files (if requested)
-            if (options.IncludeWalSegments)
-            {
-                var walFiles = Directory.Exists(_walDir) ? Directory.GetFiles(_walDir) : [];
-                foreach (var wf in walFiles)
-                {
-                    ct.ThrowIfCancellationRequested();
-                    var entryName = Path.Combine("wal", Path.GetFileName(wf)).Replace('\\', '/');
-                    var e = zip.CreateEntry(entryName, CompressionLevel.Optimal);
-                    await using var es = e.Open();
-                    await using var src = File.OpenRead(wf);
-                    await src.CopyToAsync(es, ct).ConfigureAwait(false);
-                }
-            }
-        }
-        finally
-        {
-            _commitGate.Release();
-        }
+        await _backup_manager.BackupAsync(destinationPath, options, _commitGate, FlushMemTableAsync, ct).ConfigureAwait(false);
     }
 
     public async ValueTask RestoreAsync(
@@ -478,48 +428,7 @@ class DbEngine : IDbEngine
         if (options.RequireEngineStopped && !_disposed && _initialized)
             throw new GravelInvalidOperationException("Restore requires the engine to be offline or uninitialized.");
 
-        // Extract to temp directory
-        var tmp = Path.Combine(Path.GetTempPath(), $"gravel_restore_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tmp);
-
-        using var zf = ZipFile.OpenRead(archivePath);
-        foreach (var entry in zf.Entries)
-        {
-            ct.ThrowIfCancellationRequested();
-            var dest = Path.Combine(tmp, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
-            var dir = Path.GetDirectoryName(dest)!;
-            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-            if (entry.FullName.EndsWith("/"))
-            {
-                if (!Directory.Exists(dest)) Directory.CreateDirectory(dest);
-                continue;
-            }
-
-            await using var inStream = entry.Open();
-            await using var outFs = File.Create(dest);
-            await inStream.CopyToAsync(outFs, ct).ConfigureAwait(false);
-        }
-
-        // Optionally verify manifest/checksums (not implemented: basic presence check)
-        var manifestPath = Path.Combine(tmp, "manifest.json");
-        if (!File.Exists(manifestPath)) throw new GravelInvalidOperationException("Backup manifest missing");
-
-        // Move extracted tree into target database directory (atomic replacement)
-        var targetBase = _options.DatabasePath;
-        var backupOld = targetBase + ".bak_old_" + Guid.NewGuid().ToString("N");
-
-        if (Directory.Exists(targetBase)) Directory.Move(targetBase, backupOld);
-
-        Directory.Move(tmp, targetBase);
-
-        // cleanup old db if needed (best-effort)
-        try
-        {
-            if (Directory.Exists(backupOld)) Directory.Delete(backupOld, true);
-        }
-        catch
-        {
-        }
+        await _backup_manager.RestoreAsync(archivePath, options, _options.DatabasePath, ct).ConfigureAwait(false);
     }
 
     static ulong NextSeq(ref ulong seq)
@@ -534,6 +443,133 @@ class DbEngine : IDbEngine
         return next;
     }
 
+
+    async ValueTask MaybeFlushAsync(CancellationToken ct)
+    {
+        if (_memTableManager.MemTable.Count < _options.MemTableThreshold) return;
+        Log.FlushTrigger(_logger, _memTableManager.MemTable.Count, _options.MemTableThreshold);
+        await FlushMemTableAsync(ct).ConfigureAwait(false);
+    }
+
+    async ValueTask FlushMemTableAsync(CancellationToken ct)
+    {
+        var seqTag = _walWriter.LastSequence;
+        var dir = Path.Combine(_sstDir, "L0");
+        // Directory.CreateDirectory(dir); // removed: let factory handle directory creation
+        var path = Path.Combine(dir, $"{seqTag:D20}.sst");
+        var mt = _memTableManager.GetMemTable();
+
+        using var act = TelemetryHelper.StartActivityScope(TelemetrySources.ActivitySource, _logger,
+            "Flush.MemTable");
+        act?.SetTag("sst.path", path);
+        act?.SetTag("entries", mt.Count);
+
+        Log.FlushEnqueued(_logger, mt.Count);
+        await using (var w = await _sstFactory.CreateWriterAsync(path, mt.Count, ct).ConfigureAwait(false))
+        {
+            await w.WriteAsync(EnumerateMemTableEntriesAsync(mt, ct), ct).ConfigureAwait(false);
+        }
+
+        _memTableManager.ResetMemTable();
+        // keep compatibility field in sync
+        _memTable = _memTableManager.MemTable;
+
+        var r = await _sstFactory.CreateReaderAsync(path, ct).ConfigureAwait(false);
+        _levels.Add(0, new SstFile(path, r, seqTag));
+
+        TelemetrySources.Flushes.Add(1);
+        TelemetrySources.FlushSize.Record(mt.Count);
+        Log.SstCreated(_logger, path);
+        Log.FlushComplete(_logger, path, seqTag);
+
+        await MaybeCompactAsync(ct).ConfigureAwait(false);
+    }
+
+    static async IAsyncEnumerable<DbEntry> EnumerateMemTableEntriesAsync(
+        MemTable mt,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        foreach (var (k, v, seq, kind) in mt.Scan())
+        {
+            ct.ThrowIfCancellationRequested();
+            var e = kind switch
+            {
+                DbEntryKind.Put => DbEntry.Put(k, v, seq),
+                DbEntryKind.DeleteKey => DbEntry.DeleteKey(k, seq),
+                DbEntryKind.DeleteRange => DbEntry.DeleteRange(k, v, seq),
+                _ => default
+            };
+            yield return e;
+            await Task.Yield();
+        }
+    }
+
+    async ValueTask MaybeCompactAsync(CancellationToken ct)
+    {
+        // Try to schedule a single compaction pass if thresholds are met. Keep behavior conservative: schedule at most one pass.
+        await TryScheduleCompactionPassAsync(ct).ConfigureAwait(false);
+    }
+
+    async Task<bool> TryScheduleCompactionPassAsync(CancellationToken ct)
+    {
+        for (var l = 0; l < _levels.LevelCount - 1; l++)
+        {
+            if (ct.IsCancellationRequested) return false;
+            if (!_levels.MeetsFanIn(l, _options.CompactionFanInThreshold)) continue;
+
+            var snapshot = _levels.SnapshotLevels();
+            var to = snapshot[l].ToList(); // don't remove yet; keep visible until success
+            if (to.Count == 0) continue;
+            var next = l + 1;
+            var outDir = Path.Combine(_sstDir, $"L{next}");
+            var outPath = Path.Combine(outDir, $"{DateTime.UtcNow.Ticks:D20}.sst");
+
+            using var act = TelemetrySources.ActivitySource.StartActivity("Compaction.Pass");
+            act?.SetTag("from_level", l);
+            act?.SetTag("file_count", to.Count);
+            act?.SetTag("to_level", next);
+
+            Log.CompactionStarted(_logger, l, to.Count, next);
+
+            // Enqueue compaction task instead of doing inline merge
+            var task = new MergeFilesCompactionTask(to, outPath, _sstFactory,
+                Compactor.EstimateMergedCount(to), async (p, inputs) =>
+                {
+                    // callback invoked on task success: install new SST and remove inputs atomically
+                    var newR = await _sstFactory.CreateReaderAsync(p, ct).ConfigureAwait(false);
+                    _levels.ApplyCompaction(l, inputs, next, new SstFile(p, newR, 0));
+
+                    foreach (var f in inputs)
+                    {
+                        try
+                        {
+                            f.Reader.Dispose();
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.SstDisposeError(_logger, f.Path, ex.Message);
+                        }
+
+                        try
+                        {
+                            File.Delete(f.Path);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.SstDeleteFailed(_logger, f.Path, ex.Message);
+                        }
+                    }
+
+                    TelemetrySources.Compactions.Add(1);
+                    Log.CompactionFinished(_logger, p);
+                }, _logger);
+
+            await _compactionWorker.EnqueueAsync(task, ct).ConfigureAwait(false);
+            return true;
+        }
+
+        return false;
+    }
 
     static IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> MergeSources(
         List<IScanSource> sources,
@@ -664,7 +700,7 @@ class DbEngine : IDbEngine
                         var id = Convert.ToBase64String(m.Key.ToArray());
                         if (seenKeys.Contains(id))
                             throw new GravelInvalidOperationException("Insert failed: key exists (txn)");
-                        if (_memTable.TryGet(m.Key.Span, out _, out _, out _))
+                        if (_memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out _))
                             throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
                         if (await KeyExistsInSstAsync(m.Key, ct))
                             throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
@@ -706,10 +742,10 @@ class DbEngine : IDbEngine
                 switch (a.Op)
                 {
                     case MutationOp.Put:
-                    case MutationOp.Insert: _memTable.Put(a.Key.Span, a.Value.Span, a.Sequence); break;
-                    case MutationOp.Delete: _memTable.PutDeleteTombstone(a.Key.Span, a.Sequence); break;
+                    case MutationOp.Insert: _memTableManager.MemTable.Put(a.Key.Span, a.Value.Span, a.Sequence); break;
+                    case MutationOp.Delete: _memTableManager.MemTable.PutDeleteTombstone(a.Key.Span, a.Sequence); break;
                     case MutationOp.DeleteRange:
-                        _memTable.PutRangeTombstone(a.Key.Span, a.RangeEnd.Span, a.Sequence); break;
+                        _memTableManager.MemTable.PutRangeTombstone(a.Key.Span, a.RangeEnd.Span, a.Sequence); break;
                     default:
                         throw new GravelArgumentOutOfRangeException();
                 }
@@ -763,7 +799,7 @@ class DbEngine : IDbEngine
                         var id = Convert.ToBase64String(m.Key.ToArray());
                         if (seenKeys.Contains(id))
                             throw new GravelInvalidOperationException("Insert failed: key exists (batch)");
-                        if (_memTable.TryGet(m.Key.Span, out _, out _, out _))
+                        if (_memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out _))
                             throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
                         if (await KeyExistsInSstAsync(m.Key, ct))
                             throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
@@ -804,10 +840,10 @@ class DbEngine : IDbEngine
                 switch (a.Op)
                 {
                     case MutationOp.Put:
-                    case MutationOp.Insert: _memTable.Put(a.Key.Span, a.Value.Span, a.Sequence); break;
-                    case MutationOp.Delete: _memTable.PutDeleteTombstone(a.Key.Span, a.Sequence); break;
+                    case MutationOp.Insert: _memTableManager.MemTable.Put(a.Key.Span, a.Value.Span, a.Sequence); break;
+                    case MutationOp.Delete: _memTableManager.MemTable.PutDeleteTombstone(a.Key.Span, a.Sequence); break;
                     case MutationOp.DeleteRange:
-                        _memTable.PutRangeTombstone(a.Key.Span, a.RangeEnd.Span, a.Sequence); break;
+                        _memTableManager.MemTable.PutRangeTombstone(a.Key.Span, a.RangeEnd.Span, a.Sequence); break;
                     default:
                         throw new GravelArgumentOutOfRangeException();
                 }
@@ -825,132 +861,6 @@ class DbEngine : IDbEngine
     async ValueTask CommitRangeAsync(ReadOnlyMemory<byte> start, ReadOnlyMemory<byte> end, CancellationToken ct)
     {
         await CommitSingleAsync(Mutation.DeleteRange(start, end), ct);
-    }
-
-
-    async ValueTask MaybeFlushAsync(CancellationToken ct)
-    {
-        if (_memTable.Count < _options.MemTableThreshold) return;
-        Log.FlushTrigger(_logger, _memTable.Count, _options.MemTableThreshold);
-        await FlushMemTableAsync(ct);
-    }
-
-    async ValueTask FlushMemTableAsync(CancellationToken ct)
-    {
-        var seqTag = _walWriter.LastSequence;
-        var dir = Path.Combine(_sstDir, "L0");
-        // Directory.CreateDirectory(dir); // removed: let factory handle directory creation
-        var path = Path.Combine(dir, $"{seqTag:D20}.sst");
-        var mt = _memTable;
-
-        using var act = TelemetryHelper.StartActivityScope(TelemetrySources.ActivitySource, _logger,
-            "Flush.MemTable");
-        act?.SetTag("sst.path", path);
-        act?.SetTag("entries", mt.Count);
-
-        Log.FlushEnqueued(_logger, mt.Count);
-        await using (var w = await _sstFactory.CreateWriterAsync(path, mt.Count, ct))
-        {
-            await w.WriteAsync(EnumerateMemTableEntriesAsync(mt, ct), ct);
-        }
-
-        _memTable = new MemTable();
-
-        var r = await _sstFactory.CreateReaderAsync(path, ct);
-        _levels.Add(0, new SstFile(path, r, seqTag));
-
-        TelemetrySources.Flushes.Add(1);
-        TelemetrySources.FlushSize.Record(mt.Count);
-        Log.SstCreated(_logger, path);
-        Log.FlushComplete(_logger, path, seqTag);
-
-        await MaybeCompactAsync(ct);
-    }
-
-    static async IAsyncEnumerable<DbEntry> EnumerateMemTableEntriesAsync(
-        MemTable mt,
-        [EnumeratorCancellation] CancellationToken ct)
-    {
-        foreach (var (k, v, seq, kind) in mt.Scan())
-        {
-            ct.ThrowIfCancellationRequested();
-            var e = kind switch
-            {
-                DbEntryKind.Put => DbEntry.Put(k, v, seq),
-                DbEntryKind.DeleteKey => DbEntry.DeleteKey(k, seq),
-                DbEntryKind.DeleteRange => DbEntry.DeleteRange(k, v, seq),
-                _ => default
-            };
-            yield return e;
-            await Task.Yield();
-        }
-    }
-
-    async ValueTask MaybeCompactAsync(CancellationToken ct)
-    {
-        // Try to schedule a single compaction pass if thresholds are met. Keep behavior conservative: schedule at most one pass.
-        await TryScheduleCompactionPassAsync(ct).ConfigureAwait(false);
-    }
-
-    async Task<bool> TryScheduleCompactionPassAsync(CancellationToken ct)
-    {
-        for (var l = 0; l < _levels.LevelCount - 1; l++)
-        {
-            if (ct.IsCancellationRequested) return false;
-            if (!_levels.MeetsFanIn(l, _options.CompactionFanInThreshold)) continue;
-
-            var snapshot = _levels.SnapshotLevels();
-            var to = snapshot[l].ToList(); // don't remove yet; keep visible until success
-            if (to.Count == 0) continue;
-            var next = l + 1;
-            var outDir = Path.Combine(_sstDir, $"L{next}");
-            var outPath = Path.Combine(outDir, $"{DateTime.UtcNow.Ticks:D20}.sst");
-
-            using var act = TelemetrySources.ActivitySource.StartActivity("Compaction.Pass");
-            act?.SetTag("from_level", l);
-            act?.SetTag("file_count", to.Count);
-            act?.SetTag("to_level", next);
-
-            Log.CompactionStarted(_logger, l, to.Count, next);
-
-            // Enqueue compaction task instead of doing inline merge
-            var task = new MergeFilesCompactionTask(to, outPath, _sstFactory,
-                Compactor.EstimateMergedCount(to), async (p, inputs) =>
-                {
-                    // callback invoked on task success: install new SST and remove inputs atomically
-                    var newR = await _sstFactory.CreateReaderAsync(p, ct);
-                    _levels.ApplyCompaction(l, inputs, next, new SstFile(p, newR, 0));
-
-                    foreach (var f in inputs)
-                    {
-                        try
-                        {
-                            f.Reader.Dispose();
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.SstDisposeError(_logger, f.Path, ex.Message);
-                        }
-
-                        try
-                        {
-                            File.Delete(f.Path);
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.SstDeleteFailed(_logger, f.Path, ex.Message);
-                        }
-                    }
-
-                    TelemetrySources.Compactions.Add(1);
-                    Log.CompactionFinished(_logger, p);
-                }, _logger);
-
-            await _compactionWorker.EnqueueAsync(task, ct).ConfigureAwait(false);
-            return true;
-        }
-
-        return false;
     }
 
     async ValueTask<bool> CommitSingleAsync(Mutation m, CancellationToken ct)
@@ -971,7 +881,7 @@ class DbEngine : IDbEngine
             switch (m.Op)
             {
                 case MutationOp.Insert:
-                    if (_memTable.TryGet(m.Key.Span, out _, out _, out _))
+                    if (_memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out _))
                         throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
                     if (await KeyExistsInSstAsync(m.Key, ct))
                         throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
@@ -981,7 +891,7 @@ class DbEngine : IDbEngine
                     await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct);
                     break;
                 case MutationOp.Delete:
-                    existed = _memTable.TryGet(m.Key.Span, out _, out _, out var knd) && knd == DbEntryKind.Put;
+                    existed = _memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out var knd) && knd == DbEntryKind.Put;
                     await _walWriter.AppendAsync(txnId, DbEntry.DeleteKey(m.Key, seq), ct);
                     break;
                 case MutationOp.DeleteRange:
@@ -996,9 +906,9 @@ class DbEngine : IDbEngine
             switch (m.Op)
             {
                 case MutationOp.Put:
-                case MutationOp.Insert: _memTable.Put(m.Key.Span, m.Value.Span, seq); break;
-                case MutationOp.Delete: _memTable.PutDeleteTombstone(m.Key.Span, seq); break;
-                case MutationOp.DeleteRange: _memTable.PutRangeTombstone(m.Key.Span, m.RangeEnd.Span, seq); break;
+                case MutationOp.Insert: _memTableManager.MemTable.Put(m.Key.Span, m.Value.Span, seq); break;
+                case MutationOp.Delete: _memTableManager.MemTable.PutDeleteTombstone(m.Key.Span, seq); break;
+                case MutationOp.DeleteRange: _memTableManager.MemTable.PutRangeTombstone(m.Key.Span, m.RangeEnd.Span, seq); break;
                 default:
                     throw new GravelInvalidOperationException("Unknown mutation op");
             }
@@ -1014,5 +924,4 @@ class DbEngine : IDbEngine
         }
     }
 
-    // no helper needed for zip
 }

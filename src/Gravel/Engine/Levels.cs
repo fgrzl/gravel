@@ -3,7 +3,7 @@ namespace Gravel.Engine;
 /// <summary>
 ///     Encapsulates LSM tree level organization and synchronization.
 /// </summary>
-sealed class Levels(int levelCount)
+public sealed class Levels(int levelCount)
 {
     readonly List<List<SstFile>> _levels = Enumerable.Range(0, levelCount).Select(_ => new List<SstFile>()).ToList();
     readonly object _sync = new();

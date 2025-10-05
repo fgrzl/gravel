@@ -8,10 +8,10 @@ public sealed class TokenBucketLimiter
     double _burstBytes;
     double _bytesPerSecond;
     long _lastTicks;
-    double _tokens;
 
     // Signal used to wake up waiting async consumers when rate is updated
     TaskCompletionSource<bool> _rateUpdated = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    double _tokens;
 
     public TokenBucketLimiter(double bytesPerSecond, double burstBytes)
     {
@@ -87,7 +87,7 @@ public sealed class TokenBucketLimiter
                 var undershoot = Math.Max(1.0, ms * 0.9);
 
                 // Create delay task and race it against a rate-update signal so UpdateRate can wake us early.
-                Task delayTask = Task.Delay(TimeSpan.FromMilliseconds(undershoot), ct);
+                var delayTask = Task.Delay(TimeSpan.FromMilliseconds(undershoot), ct);
                 Task rateTask;
                 lock (_lock)
                 {
@@ -108,7 +108,7 @@ public sealed class TokenBucketLimiter
             {
                 var sliceMs = (int)Math.Max(1.0, Math.Min(ms, MaxDelaySliceMs));
 
-                Task delayTask = Task.Delay(sliceMs, ct);
+                var delayTask = Task.Delay(sliceMs, ct);
                 Task rateTask;
                 lock (_lock)
                 {
@@ -136,7 +136,9 @@ public sealed class TokenBucketLimiter
             var oldBurst = _burstBytes;
             _bytesPerSecond = bytesPerSecond;
             _burstBytes = burstBytes;
-            _tokens = burstBytes > oldBurst ? Math.Min(_tokens + (burstBytes - oldBurst), _burstBytes) : Math.Min(_tokens, _burstBytes);
+            _tokens = burstBytes > oldBurst
+                ? Math.Min(_tokens + (burstBytes - oldBurst), _burstBytes)
+                : Math.Min(_tokens, _burstBytes);
             _lastTicks = Stopwatch.GetTimestamp();
 
             // Signal waiting waiters that the rate has been updated so they can wake early
@@ -144,7 +146,13 @@ public sealed class TokenBucketLimiter
             // Replace with a fresh TCS for future updates
             _rateUpdated = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             // Try to set the previous one, ignore if already completed
-            try { prev.TrySetResult(true); } catch { }
+            try
+            {
+                prev.TrySetResult(true);
+            }
+            catch
+            {
+            }
         }
     }
 }

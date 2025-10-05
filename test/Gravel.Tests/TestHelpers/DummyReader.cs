@@ -34,14 +34,14 @@ public sealed class DummyReader : ISstReader
     {
     }
 
+    public ValueTask InitializeAsync(CancellationToken ct = default)
+    {
+        return ValueTask.CompletedTask;
+    }
+
     static async IAsyncEnumerable<DbEntry> Empty([EnumeratorCancellation] CancellationToken ct)
     {
         await Task.CompletedTask;
         yield break;
-    }
-
-    public ValueTask InitializeAsync(CancellationToken ct = default)
-    {
-        return ValueTask.CompletedTask;
     }
 }

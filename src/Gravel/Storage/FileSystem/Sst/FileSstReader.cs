@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -107,7 +106,7 @@ public sealed class FileSstReader : ISstReader
         if (_filter != null && !_filter.MightContain(key.Span))
             return null;
 
-        int found = FindIndexEntry(key.Span);
+        var found = FindIndexEntry(key.Span);
         if (found >= 0)
         {
             var handle = _indexEntries[found].handle;
@@ -126,36 +125,6 @@ public sealed class FileSstReader : ISstReader
         return null;
     }
 
-    int FindIndexEntry(ReadOnlySpan<byte> key)
-    {
-        int lo = 0, hi = _indexEntries.Count - 1, found = -1;
-        while (lo <= hi)
-        {
-            var mid = lo + hi >> 1;
-            var cmp = ByteComparer.Compare(key, _indexEntries[mid].key);
-            if (cmp <= 0)
-            {
-                found = mid;
-                hi = mid - 1;
-            }
-            else lo = mid + 1;
-        }
-        return found;
-    }
-
-    DbEntry? FindEntryInBlock(byte[] block, ReadOnlySpan<byte> key)
-    {
-        foreach (var e in ParseDataBlockOwned(block))
-        {
-            var cmp = ByteComparer.Compare(e.Key.Span, key);
-            if (cmp == 0)
-                return e;
-            if (cmp > 0)
-                break;
-        }
-        return null;
-    }
-
     public async IAsyncEnumerable<DbEntry> ReadAllAsync([EnumeratorCancellation] CancellationToken ct = default)
     {
         await InitializeAsync(ct).ConfigureAwait(false);
@@ -170,6 +139,38 @@ public sealed class FileSstReader : ISstReader
                     yield return e;
             }
         }
+    }
+
+    int FindIndexEntry(ReadOnlySpan<byte> key)
+    {
+        int lo = 0, hi = _indexEntries.Count - 1, found = -1;
+        while (lo <= hi)
+        {
+            var mid = lo + hi >> 1;
+            var cmp = ByteComparer.Compare(key, _indexEntries[mid].key);
+            if (cmp <= 0)
+            {
+                found = mid;
+                hi = mid - 1;
+            }
+            else lo = mid + 1;
+        }
+
+        return found;
+    }
+
+    DbEntry? FindEntryInBlock(byte[] block, ReadOnlySpan<byte> key)
+    {
+        foreach (var e in ParseDataBlockOwned(block))
+        {
+            var cmp = ByteComparer.Compare(e.Key.Span, key);
+            if (cmp == 0)
+                return e;
+            if (cmp > 0)
+                break;
+        }
+
+        return null;
     }
 
     // ---------------------------------------------------------------------

@@ -247,14 +247,17 @@ public sealed class FileSstWriter : ISstWriter
                 {
                     return (pooledBuf, compLen, compType);
                 }
+
                 // Otherwise, slice the buffer to the actual length
                 var resultArr = new byte[compLen];
                 Array.Copy(pooledBuf, 0, resultArr, 0, compLen);
                 return (resultArr, compLen, compType);
             }
+
             var fallbackArr = _compressor.Compress(raw);
             return (fallbackArr, fallbackArr.Length, compType);
         }
+
         var arr2 = _compressor.Compress(raw);
         return (arr2, arr2.Length, compType);
     }
