@@ -1,6 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Runtime.CompilerServices;
+using Gravel.Internals;
 
 namespace Gravel.Compression.Snappy;
 
@@ -21,11 +22,15 @@ public static class SnappyCodec
     /// <returns>A compressed byte array containing the Snappy-encoded data.</returns>
     public static byte[] Compress(ReadOnlySpan<byte> input)
     {
-        if (input.IsEmpty) return [0];
-        Span<byte> outBuf = stackalloc byte[input.Length + 10];
+        if (input.IsEmpty)
+            return [0];
+
+        using var buffer = Buf.Rent(input.Length + 10);
+        var outBuf = buffer.Span;
         var offset = WriteVarInt(outBuf, (uint)input.Length);
         offset += WriteLiteral(outBuf[offset..], input);
         return outBuf[..offset].ToArray();
+
     }
 
     /// <summary>
@@ -170,29 +175,29 @@ public static class SnappyCodec
         switch (kind)
         {
             case 1:
-            {
-                copyLen = (tag >> 2 & 0x07) + 4;
-                if (pos >= n)
-                    return false;
-                offset = input[pos++];
-                break;
-            }
+                {
+                    copyLen = (tag >> 2 & 0x07) + 4;
+                    if (pos >= n)
+                        return false;
+                    offset = input[pos++];
+                    break;
+                }
             case 2:
-            {
-                copyLen = (tag >> 2 & 0x3F) + 1;
-                if (pos + 2 > n) return false;
-                offset = BinaryPrimitives.ReadUInt16LittleEndian(input.Slice(pos, 2));
-                pos += 2;
-                break;
-            }
+                {
+                    copyLen = (tag >> 2 & 0x3F) + 1;
+                    if (pos + 2 > n) return false;
+                    offset = BinaryPrimitives.ReadUInt16LittleEndian(input.Slice(pos, 2));
+                    pos += 2;
+                    break;
+                }
             default:
-            {
-                copyLen = (tag >> 2 & 0x3F) + 1;
-                if (pos + 4 > n) return false;
-                offset = BinaryPrimitives.ReadInt32LittleEndian(input.Slice(pos, 4));
-                pos += 4;
-                break;
-            }
+                {
+                    copyLen = (tag >> 2 & 0x3F) + 1;
+                    if (pos + 4 > n) return false;
+                    offset = BinaryPrimitives.ReadInt32LittleEndian(input.Slice(pos, 4));
+                    pos += 4;
+                    break;
+                }
         }
 
         if (offset == 0 || written - offset < 0 || written + copyLen > destination.Length) return false;
@@ -265,13 +270,13 @@ public static class SnappyCodec
         int len = literal.Length, pos = 0;
         if (len <= 60)
         {
-            dst[pos++] = (byte)(len - 1 << 2);
+            dst[pos++] = (byte)(((len - 1) << 2));
         }
         else
         {
             var lenm1 = (uint)(len - 1);
             var extra = lenm1 <= 0xFF ? 1 : lenm1 <= 0xFFFF ? 2 : lenm1 <= 0xFFFFFF ? 3 : 4;
-            dst[pos++] = (byte)(60 + (extra - 1) << 2);
+            dst[pos++] = (byte)(((60 + (extra - 1)) << 2));
             for (var i = 0; i < extra; i++)
                 dst[pos++] = (byte)(lenm1 >> 8 * i);
         }
