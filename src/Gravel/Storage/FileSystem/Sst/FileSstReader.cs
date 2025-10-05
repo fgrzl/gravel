@@ -110,7 +110,7 @@ public sealed class FileSstReader : ISstReader
         int lo = 0, hi = _indexEntries.Count - 1, found = -1;
         while (lo <= hi)
         {
-            var mid = (lo + hi) >> 1;
+            var mid = lo + hi >> 1;
             var cmp = ByteComparer.Compare(key.Span, _indexEntries[mid].key);
             if (cmp <= 0)
             {
@@ -132,6 +132,7 @@ public sealed class FileSstReader : ISstReader
                     if (IsMaskedByRange(key.Span, e.Sequence)) return null;
                     return e;
                 }
+
                 if (cmp > 0) break;
             }
         }
@@ -222,40 +223,40 @@ public sealed class FileSstReader : ISstReader
 
     static void ValidateBlockCrc(ReadOnlySpan<byte> data, byte compType, uint expectedCrc)
     {
-        Span<byte> crcInput = stackalloc byte[data.Length + 1];
+        using var scope = Buf.AsyncRent(data.Length + 1);
+        var crcInput = scope.Span;
         data.CopyTo(crcInput);
         crcInput[^1] = compType;
-        if (Crc32C.Compute(crcInput) != expectedCrc)
+        var actualCrc = Crc32C.Compute(crcInput);
+        if (actualCrc != expectedCrc)
             throw new InvalidDataException("CRC mismatch in block");
     }
 
     static byte[] CopyUncompressedBlock(ReadOnlySpan<byte> data)
     {
-        var pooled = ArrayPool<byte>.Shared.Rent(data.Length);
+        using var scope = Buf.AsyncRent(data.Length);
+        var pooled = scope.Span;
         data.CopyTo(pooled);
         var result = new byte[data.Length];
-        pooled.AsSpan(0, data.Length).CopyTo(result);
-        ArrayPool<byte>.Shared.Return(pooled);
+        pooled[..data.Length].CopyTo(result);
         return result;
     }
 
     byte[] DecompressSnappyBlock(ReadOnlySpan<byte> data)
     {
         var compressor = _compressorFactory.Get(CompressionKind.Snappy);
-        if (!compressor.TryGetDecompressedLength(data, out var uncompLen))
+        if (!compressor.TryGetDecompressedLength(data, out var rawLen))
             return compressor.Decompress(data);
 
-        var pooled = ArrayPool<byte>.Shared.Rent(uncompLen);
-        if (compressor.TryDecompress(data, pooled, out var written) && written == uncompLen)
-        {
-            var result = new byte[uncompLen];
-            pooled.AsSpan(0, uncompLen).CopyTo(result);
-            ArrayPool<byte>.Shared.Return(pooled);
-            return result;
-        }
-        ArrayPool<byte>.Shared.Return(pooled);
+        using var scope = Buf.AsyncRent(rawLen);
+        var pooled = scope.Span;
+        if (!compressor.TryDecompress(data, pooled, out var written) || written != rawLen)
+            return compressor.Decompress(data);
+
+        var result = new byte[rawLen];
+        pooled[..rawLen].CopyTo(result);
+        return result;
         // fallback to legacy API
-        return compressor.Decompress(data);
     }
 
     static List<(byte[] key, byte[] value)> ParseKeyValueBlock(byte[] raw)
@@ -312,21 +313,15 @@ public sealed class FileSstReader : ISstReader
         var restartsOff = raw.Length - 4 - restartsCount * 4;
         var pos = 0;
 
-        byte[] keyBuf = ArrayPool<byte>.Shared.Rent(256);
+        using var scope = Buf.AsyncRent(256);
+        var keyBuf = scope.Buffer;
         var keyLen = 0;
 
-        try
+        while (pos < restartsOff)
         {
-            while (pos < restartsOff)
-            {
-                ParseEntry(raw, ref pos, keyBuf, ref keyLen, out var entry);
-                if (entry != null)
-                    yield return entry.Value;
-            }
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(keyBuf);
+            ParseEntry(raw, ref pos, keyBuf, ref keyLen, out var entry);
+            if (entry != null)
+                yield return entry.Value;
         }
     }
 
@@ -339,15 +334,9 @@ public sealed class FileSstReader : ISstReader
 
         var needed = shared + unshared;
         if (needed > keyBuf.Length)
-        {
-            var newBuf = ArrayPool<byte>.Shared.Rent(Math.Max(needed, keyBuf.Length * 2));
-            if (shared > 0 && keyLen >= shared)
-                Array.Copy(keyBuf, 0, newBuf, 0, shared);
-            ArrayPool<byte>.Shared.Return(keyBuf);
-            keyBuf = newBuf;
-        }
+            throw new InvalidOperationException("Key buffer too small; increase Buf.AsyncRent size if needed.");
 
-        raw.AsSpan(pos, unshared).CopyTo(keyBuf.AsSpan(shared));
+        raw.AsSpan(pos, unshared).CopyTo(keyBuf.AsSpan(shared, unshared));
         keyLen = shared + unshared;
         pos += unshared;
 
@@ -368,7 +357,7 @@ public sealed class FileSstReader : ISstReader
         var userLen = keyLen - 8;
 
         var keyArr = new byte[userLen];
-        Array.Copy(keyBuf, 0, keyArr, 0, userLen);
+        keyBuf.AsSpan(0, userLen).CopyTo(keyArr);
         var valArr = valueSpan.ToArray();
 
         entry = type switch
@@ -391,7 +380,7 @@ public sealed class FileSstReader : ISstReader
         int lo = 0, hi = _rangeDeletes.Count - 1;
         while (lo <= hi)
         {
-            var mid = (lo + hi) >> 1;
+            var mid = lo + hi >> 1;
             var cmp = ByteComparer.Compare(_rangeDeletes[mid].Start, key);
             if (cmp <= 0) lo = mid + 1;
             else hi = mid - 1;
