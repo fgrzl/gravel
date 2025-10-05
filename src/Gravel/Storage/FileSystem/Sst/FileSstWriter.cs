@@ -318,35 +318,20 @@ public sealed class FileSstWriter : ISstWriter
         var payload = comp == CompressionKind.None ? raw : _compressor.Compress(raw);
         var offset = _stream.Position;
 
-        // compute crc using pooled buffer for large payloads
-        uint crc;
-        var compType = (byte)comp;
-        if (payload.Length <= 1024)
-        {
-            Span<byte> crcInput = stackalloc byte[payload.Length + 1];
-            payload.CopyTo(crcInput);
-            crcInput[^1] = compType;
-            crc = Crc32C.Compute(crcInput);
-        }
-        else
-        {
-            var pooled = ArrayPool<byte>.Shared.Rent(payload.Length + 1);
-            try
-            {
-                payload.CopyTo(pooled.AsSpan(0, payload.Length));
-                pooled[payload.Length] = compType;
-                crc = Crc32C.Compute(pooled.AsSpan(0, payload.Length + 1));
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(pooled);
-            }
-        }
 
+        var compType = (byte)comp;
+
+        var bufLen = payload.Length + 1;
+        using var pooled = Buf.AsyncRent(bufLen);
+        payload.CopyTo(pooled.Span);
+        pooled.Span[payload.Length] = compType;
+        var checksum = Crc32C.Compute(pooled.Span[..bufLen]);
         await _stream.WriteAsync(payload, ct).ConfigureAwait(false);
+
+
         Span<byte> trailer = stackalloc byte[5];
         trailer[0] = compType;
-        BinaryPrimitives.WriteUInt32LittleEndian(trailer[1..], crc);
+        BinaryPrimitives.WriteUInt32LittleEndian(trailer[1..], checksum);
         _stream.Write(trailer);
 
         var size = _stream.Position - offset;
