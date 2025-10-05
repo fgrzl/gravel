@@ -1,12 +1,28 @@
 ﻿namespace Gravel.Internals;
 
+/// <summary>
+///     Provides static methods for encoding and decoding variable-length integers (varint).
+///     Supports 32-bit and 64-bit unsigned integers for efficient storage and transmission.
+/// </summary>
 public static class VarInt
 {
+    /// <summary>
+    ///     Writes a 32-bit unsigned integer as a varint to the destination span.
+    /// </summary>
+    /// <param name="dst">The destination span.</param>
+    /// <param name="v">The value to write.</param>
+    /// <returns>The number of bytes written.</returns>
     public static int Write32(Span<byte> dst, uint v)
     {
         return Write64(dst, v);
     }
 
+    /// <summary>
+    ///     Writes a 64-bit unsigned integer as a varint to the destination span.
+    /// </summary>
+    /// <param name="dst">The destination span.</param>
+    /// <param name="v">The value to write.</param>
+    /// <returns>The number of bytes written.</returns>
     public static int Write64(Span<byte> dst, ulong v)
     {
         var i = 0;
@@ -22,6 +38,12 @@ public static class VarInt
         return i;
     }
 
+    /// <summary>
+    ///     Reads a 32-bit unsigned integer as a varint from the buffer, updating the position.
+    /// </summary>
+    /// <param name="buf">The buffer to read from.</param>
+    /// <param name="pos">The position in the buffer (updated).</param>
+    /// <returns>The decoded 32-bit unsigned integer.</returns>
     public static uint Read32(byte[] buf, ref int pos)
     {
         ArgumentNullException.ThrowIfNull(buf, nameof(buf));
@@ -41,6 +63,12 @@ public static class VarInt
         throw new FormatException("Malformed varint32");
     }
 
+    /// <summary>
+    ///     Reads a 32-bit unsigned integer as a varint from the span, updating the position.
+    /// </summary>
+    /// <param name="span">The span to read from.</param>
+    /// <param name="pos">The position in the span (updated).</param>
+    /// <returns>The decoded 32-bit unsigned integer.</returns>
     public static uint Read32(ReadOnlySpan<byte> span, ref int pos)
     {
         uint result = 0;
@@ -59,6 +87,11 @@ public static class VarInt
         throw new FormatException("Malformed varint32");
     }
 
+    /// <summary>
+    ///     Reads a 64-bit unsigned integer as a varint from the span, updating the span reference.
+    /// </summary>
+    /// <param name="span">The span to read from (updated).</param>
+    /// <returns>The decoded 64-bit unsigned integer.</returns>
     public static ulong Read64(ref ReadOnlySpan<byte> span)
     {
         ulong result = 0;

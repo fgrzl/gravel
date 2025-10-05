@@ -5,23 +5,44 @@ namespace Gravel;
 
 /// <summary>
 ///     Represents an encoded key optimized for lexicographic sorting.
+///     Provides static helpers for encoding, decoding, and comparison.
 /// </summary>
 public readonly struct LexKey(byte[] bytes)
 {
     readonly byte[] _bytes = bytes ?? [];
 
+    /// <summary>
+    ///     Gets an empty <see cref="LexKey"/> instance.
+    /// </summary>
     public static readonly LexKey Empty = new([]);
+    /// <summary>
+    ///     Gets a <see cref="LexKey"/> instance representing the last possible key.
+    /// </summary>
     public static readonly LexKey Last = Encode(LexKeyConstants.EndMarker);
 
+    /// <summary>
+    ///     Gets the encoded bytes of the key.
+    /// </summary>
     public ReadOnlyMemory<byte> Bytes => _bytes;
 
+    /// <summary>
+    ///     Returns true if the key is empty.
+    /// </summary>
     public bool IsEmpty => _bytes.Length == 0;
 
+    /// <summary>
+    ///     Returns the key as a lowercase hexadecimal string.
+    /// </summary>
     public string ToHexString()
     {
         return _bytes.Length == 0 ? string.Empty : Convert.ToHexString(_bytes).ToLowerInvariant();
     }
 
+    /// <summary>
+    ///     Creates a <see cref="LexKey"/> from a hexadecimal string.
+    /// </summary>
+    /// <param name="hex">The hex string.</param>
+    /// <returns>A new <see cref="LexKey"/> instance.</returns>
     public static LexKey FromHexString(string hex)
     {
         if (string.IsNullOrEmpty(hex))
@@ -31,6 +52,11 @@ public readonly struct LexKey(byte[] bytes)
         return new LexKey(bytes);
     }
 
+    /// <summary>
+    ///     Creates a new <see cref="LexKey"/> from heterogeneous parts.
+    /// </summary>
+    /// <param name="parts">The parts to encode.</param>
+    /// <returns>A new <see cref="LexKey"/> instance.</returns>
     public static LexKey New(params object?[] parts)
     {
         if (parts.Length == 0)
@@ -53,11 +79,21 @@ public readonly struct LexKey(byte[] bytes)
         return new LexKey(buffer[..offset].ToArray());
     }
 
+    /// <summary>
+    ///     Encodes heterogeneous parts into a <see cref="LexKey"/>.
+    /// </summary>
+    /// <param name="parts">The parts to encode.</param>
+    /// <returns>A new <see cref="LexKey"/> instance.</returns>
     public static LexKey Encode(params object?[] parts)
     {
         return New(parts);
     }
 
+    /// <summary>
+    ///     Encodes parts and appends a separator byte.
+    /// </summary>
+    /// <param name="parts">The parts to encode.</param>
+    /// <returns>A new <see cref="LexKey"/> instance.</returns>
     public static LexKey EncodeFirst(params object?[] parts)
     {
         var prefix = Encode(parts);
@@ -67,6 +103,11 @@ public readonly struct LexKey(byte[] bytes)
         return new LexKey(arr);
     }
 
+    /// <summary>
+    ///     Encodes parts and appends an end marker byte.
+    /// </summary>
+    /// <param name="parts">The parts to encode.</param>
+    /// <returns>A new <see cref="LexKey"/> instance.</returns>
     public static LexKey EncodeLast(params object?[] parts)
     {
         var prefix = Encode(parts);
@@ -76,6 +117,11 @@ public readonly struct LexKey(byte[] bytes)
         return new LexKey(arr);
     }
 
+    /// <summary>
+    ///     Encodes a single part to a byte array.
+    /// </summary>
+    /// <param name="value">The value to encode.</param>
+    /// <returns>The encoded bytes.</returns>
     static byte[] EncodePart(object? value)
     {
         switch (value)
@@ -124,6 +170,11 @@ public readonly struct LexKey(byte[] bytes)
         }
     }
 
+    /// <summary>
+    ///     Estimates the total size in bytes for the encoded key parts.
+    /// </summary>
+    /// <param name="parts">The parts to estimate.</param>
+    /// <returns>The estimated size in bytes.</returns>
     static int EstimateSize(object?[] parts)
     {
         var size = 0;
@@ -148,6 +199,11 @@ public readonly struct LexKey(byte[] bytes)
         return size;
     }
 
+    /// <summary>
+    ///     Encodes a signed 64-bit integer to a canonical big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <returns>The encoded bytes.</returns>
     static byte[] EncodeInt64(long v)
     {
         Span<byte> buf = stackalloc byte[8];
@@ -155,6 +211,11 @@ public readonly struct LexKey(byte[] bytes)
         return buf.ToArray();
     }
 
+    /// <summary>
+    ///     Encodes a signed 16-bit integer to a canonical big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <returns>The encoded bytes.</returns>
     static byte[] EncodeInt16(short v)
     {
         Span<byte> buf = stackalloc byte[2];
@@ -162,6 +223,11 @@ public readonly struct LexKey(byte[] bytes)
         return buf.ToArray();
     }
 
+    /// <summary>
+    ///     Encodes an unsigned 16-bit integer to a big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <returns>The encoded bytes.</returns>
     static byte[] EncodeUInt16(ushort v)
     {
         Span<byte> buf = stackalloc byte[2];
@@ -169,6 +235,11 @@ public readonly struct LexKey(byte[] bytes)
         return buf.ToArray();
     }
 
+    /// <summary>
+    ///     Encodes an unsigned 32-bit integer to a big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <returns>The encoded bytes.</returns>
     static byte[] EncodeUInt32(uint v)
     {
         Span<byte> buf = stackalloc byte[4];
@@ -176,6 +247,11 @@ public readonly struct LexKey(byte[] bytes)
         return buf.ToArray();
     }
 
+    /// <summary>
+    ///     Encodes an unsigned 64-bit integer to a big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <returns>The encoded bytes.</returns>
     static byte[] EncodeUInt64(ulong v)
     {
         Span<byte> buf = stackalloc byte[8];
@@ -183,6 +259,11 @@ public readonly struct LexKey(byte[] bytes)
         return buf.ToArray();
     }
 
+    /// <summary>
+    ///     Encodes a 32-bit floating point value to a canonical big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <returns>The encoded bytes.</returns>
     static byte[] EncodeFloat32(float v)
     {
         Span<byte> buf = stackalloc byte[4];
@@ -197,6 +278,11 @@ public readonly struct LexKey(byte[] bytes)
         return buf.ToArray();
     }
 
+    /// <summary>
+    ///     Encodes a 64-bit floating point value to a canonical big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <returns>The encoded bytes.</returns>
     static byte[] EncodeFloat64(double v)
     {
         Span<byte> buf = stackalloc byte[8];
@@ -211,7 +297,12 @@ public readonly struct LexKey(byte[] bytes)
         return buf.ToArray();
     }
 
-    // Comparison and equality helpers
+    /// <summary>
+    ///     Compares two <see cref="LexKey"/> instances for lexicographic order.
+    /// </summary>
+    /// <param name="a">The first key.</param>
+    /// <param name="b">The second key.</param>
+    /// <returns>-1 if a &lt; b, 0 if equal, 1 if a &gt; b.</returns>
     public int Compare(LexKey a, LexKey b)
     {
         var x = a._bytes;
@@ -225,17 +316,31 @@ public readonly struct LexKey(byte[] bytes)
         return x.Length < y.Length ? -1 : 1;
     }
 
+    /// <summary>
+    ///     Returns true if this key equals another <see cref="LexKey"/>.
+    /// </summary>
+    /// <param name="other">The other key.</param>
+    /// <returns>True if equal, otherwise false.</returns>
     public bool Equals(LexKey other)
     {
         if (_bytes.Length != other._bytes.Length) return false;
         return _bytes.SequenceEqual(other._bytes);
     }
 
+    /// <summary>
+    ///     Returns true if this key equals another object.
+    /// </summary>
+    /// <param name="obj">The object to compare.</param>
+    /// <returns>True if equal, otherwise false.</returns>
     public override bool Equals(object? obj)
     {
         return obj is LexKey k && Equals(k);
     }
 
+    /// <summary>
+    ///     Gets the hash code for this key.
+    /// </summary>
+    /// <returns>The hash code.</returns>
     public override int GetHashCode()
     {
         // FNV-1a 32-bit

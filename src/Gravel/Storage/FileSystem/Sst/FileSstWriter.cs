@@ -48,7 +48,7 @@ public sealed class FileSstWriter : ISstWriter
         _finalPath = path;
         _tmpPath = path + ".tmp." + Guid.NewGuid().ToString("N");
         _logger = logger ?? NullLogger.Instance;
-        _compressor = compressor ?? new DefaultCompressor();
+        _compressor = compressor ?? new ZeroCompressor();
         _targetBlockSize = Math.Max(4096, blockSize);
         _fullFilter = new FullFilterBlockBuilder(expectedEntries);
 

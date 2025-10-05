@@ -2,6 +2,10 @@
 
 namespace Gravel.Internals.Compaction;
 
+/// <summary>
+/// Implements a token bucket rate limiter for controlling throughput (e.g., bytes per second).
+/// Supports burst limits and dynamic rate updates. Thread-safe for concurrent use.
+/// </summary>
 public sealed class TokenBucketLimiter
 {
     readonly object _lock = new();
@@ -13,6 +17,11 @@ public sealed class TokenBucketLimiter
     TaskCompletionSource<bool> _rateUpdated = new(TaskCreationOptions.RunContinuationsAsynchronously);
     double _tokens;
 
+    /// <summary>
+    /// Initializes a new instance of <see cref="TokenBucketLimiter"/> with the specified rate and burst size.
+    /// </summary>
+    /// <param name="bytesPerSecond">Allowed bytes per second.</param>
+    /// <param name="burstBytes">Maximum burst size in bytes.</param>
     public TokenBucketLimiter(double bytesPerSecond, double burstBytes)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(bytesPerSecond, 0.0, nameof(bytesPerSecond));
@@ -23,20 +32,16 @@ public sealed class TokenBucketLimiter
         _lastTicks = Stopwatch.GetTimestamp();
     }
 
-    // Max delay slice in milliseconds for small deficits. Larger deficits use a single reduced delay.
+    /// <summary>
+    /// Maximum delay slice in milliseconds for small deficits. Larger deficits use a single reduced delay.
+    /// </summary>
     public int MaxDelaySliceMs { get; set; } = 50;
 
-    void Refill()
-    {
-        var now = Stopwatch.GetTimestamp();
-        var elapsed = (now - _lastTicks) / (double)Stopwatch.Frequency;
-        if (elapsed > 0)
-        {
-            _tokens = Math.Min(_burstBytes, _tokens + elapsed * _bytesPerSecond);
-            _lastTicks = now;
-        }
-    }
-
+    /// <summary>
+    /// Attempts to consume the specified number of bytes from the bucket. Returns true if enough tokens are available.
+    /// </summary>
+    /// <param name="bytes">The number of bytes to consume.</param>
+    /// <returns>True if tokens were consumed, otherwise false.</returns>
     public bool TryConsume(int bytes)
     {
         if (bytes <= 0) return true;
@@ -53,6 +58,11 @@ public sealed class TokenBucketLimiter
         }
     }
 
+    /// <summary>
+    /// Asynchronously waits until enough tokens are available to consume the specified number of bytes.
+    /// </summary>
+    /// <param name="bytes">The number of bytes to consume.</param>
+    /// <param name="ct">Cancellation token.</param>
     public async Task WaitToConsumeAsync(int bytes, CancellationToken ct)
     {
         if (bytes <= 0) return;
@@ -126,6 +136,11 @@ public sealed class TokenBucketLimiter
         }
     }
 
+    /// <summary>
+    /// Updates the rate and burst size for the limiter. Wakes any waiting consumers.
+    /// </summary>
+    /// <param name="bytesPerSecond">New allowed bytes per second.</param>
+    /// <param name="burstBytes">New maximum burst size in bytes.</param>
     public void UpdateRate(double bytesPerSecond, double burstBytes)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(bytesPerSecond, 0.0, nameof(bytesPerSecond));
@@ -153,6 +168,17 @@ public sealed class TokenBucketLimiter
             catch
             {
             }
+        }
+    }
+
+    void Refill()
+    {
+        var now = Stopwatch.GetTimestamp();
+        var elapsed = (now - _lastTicks) / (double)Stopwatch.Frequency;
+        if (elapsed > 0)
+        {
+            _tokens = Math.Min(_burstBytes, _tokens + elapsed * _bytesPerSecond);
+            _lastTicks = now;
         }
     }
 }

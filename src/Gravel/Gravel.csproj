@@ -8,8 +8,9 @@
     <!-- Treat all warnings as errors for stricter CI and packaging -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningLevel>5</WarningLevel>
-    <!-- Allow these documentation warnings to remain non-fatal (too many public members) -->
+    <!-- Allow these documentation warnings to remain non-fatal (too many public members) 
     <WarningsNotAsErrors>CS1591;CS1574;CS1573</WarningsNotAsErrors>
+	-->
 
     <!-- Packaging / NuGet metadata -->
     <IsPackable>true</IsPackable>

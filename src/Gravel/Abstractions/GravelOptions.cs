@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 namespace Gravel.Abstractions;
 
 /// <summary>
-///     Provides configuration options for a <see cref="GravelDb" /> instance and its components
+///     Provides configuration options for a <see cref="DbEngine" /> instance and its components
 ///     (WAL, SST files, and compaction).
 /// </summary>
 public sealed class GravelOptions : IOptions<GravelOptions>
@@ -77,7 +77,8 @@ public sealed class GravelOptions : IOptions<GravelOptions>
     /// </summary>
     public int MaxConcurrentCompactions { get; set; } = 2;
 
-
-    // IOptions implementation
+    /// <summary>
+    ///     Gets the current <see cref="GravelOptions"/> instance (IOptions implementation).
+    /// </summary>
     public GravelOptions Value => this;
 }

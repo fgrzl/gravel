@@ -9,7 +9,7 @@ namespace Gravel.Compression;
 /// </summary>
 public sealed class CompressorFactory : ICompressorFactory
 {
-    readonly IBlockCompressor _none = new DefaultCompressor();
+    readonly IBlockCompressor _none = new ZeroCompressor();
     readonly IBlockCompressor _snappy = new SnappyCompressor();
 
     /// <summary>

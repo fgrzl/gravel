@@ -7,6 +7,7 @@ namespace Gravel.Compression.Snappy;
 /// <summary>
 ///     Snappy (unframed) helper with full back-reference compression.
 ///     Optimized for fewer allocations and faster copy/scan loops.
+///     Provides static methods for compressing and decompressing data, and a stream wrapper.
 /// </summary>
 public static class SnappyCodec
 {
@@ -310,7 +311,7 @@ public static class SnappyCodec
     }
 
     /// <summary>
-    ///     Provides a Stream wrapper similar to existing .NET compression streams.
+    ///     Provides a Stream wrapper similar to existing .NET compression streams for Snappy compression and decompression.
     /// </summary>
     public sealed class SnappyStream : Stream
     {
@@ -322,6 +323,12 @@ public static class SnappyCodec
         byte[]? _decompressed; // used for Decompress mode
         bool _disposed;
 
+        /// <summary>
+        ///     Initializes a new instance of <see cref="SnappyStream"/> for compression or decompression.
+        /// </summary>
+        /// <param name="stream">The underlying stream.</param>
+        /// <param name="mode">Compression or decompression mode.</param>
+        /// <param name="leaveOpen">Whether to leave the underlying stream open on dispose.</param>
         public SnappyStream(Stream stream, CompressionMode mode, bool leaveOpen = false)
         {
             ArgumentNullException.ThrowIfNull(stream, nameof(stream));
@@ -333,17 +340,35 @@ public static class SnappyCodec
                 _writeBuffer = new MemoryStream();
         }
 
+        /// <summary>
+        ///     Gets a value indicating whether the stream supports reading.
+        /// </summary>
         public override bool CanRead => !_disposed && _mode == CompressionMode.Decompress && _baseStream.CanRead;
+        /// <summary>
+        ///     Gets a value indicating whether the stream supports seeking (always false).
+        /// </summary>
         public override bool CanSeek => false;
+        /// <summary>
+        ///     Gets a value indicating whether the stream supports writing.
+        /// </summary>
         public override bool CanWrite => !_disposed && _mode == CompressionMode.Compress && _baseStream.CanWrite;
+        /// <summary>
+        ///     Gets the length of the stream (not supported).
+        /// </summary>
         public override long Length => throw new NotSupportedException();
 
+        /// <summary>
+        ///     Gets or sets the position within the stream (not supported).
+        /// </summary>
         public override long Position
         {
             get => throw new NotSupportedException();
             set => throw new NotSupportedException();
         }
 
+        /// <summary>
+        ///     Flushes the stream and writes any buffered data.
+        /// </summary>
         public override void Flush()
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SnappyStream));
@@ -363,6 +388,13 @@ public static class SnappyCodec
             }
         }
 
+        /// <summary>
+        ///     Reads decompressed data from the stream into the buffer.
+        /// </summary>
+        /// <param name="buffer">The buffer to read into.</param>
+        /// <param name="offset">The offset in the buffer.</param>
+        /// <param name="count">The maximum number of bytes to read.</param>
+        /// <returns>The number of bytes read.</returns>
         public override int Read(byte[] buffer, int offset, int count)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SnappyStream));
@@ -379,6 +411,12 @@ public static class SnappyCodec
             return toCopy;
         }
 
+        /// <summary>
+        ///     Writes data to the stream for compression.
+        /// </summary>
+        /// <param name="buffer">The buffer containing data to write.</param>
+        /// <param name="offset">The offset in the buffer.</param>
+        /// <param name="count">The number of bytes to write.</param>
         public override void Write(byte[] buffer, int offset, int count)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SnappyStream));
@@ -390,6 +428,9 @@ public static class SnappyCodec
             _writeBuffer!.Write(buffer, offset, count);
         }
 
+        /// <summary>
+        ///     Ensures the stream is decompressed and ready for reading.
+        /// </summary>
         void EnsureDecompressed()
         {
             if (_decompressed != null) return;
@@ -400,6 +441,10 @@ public static class SnappyCodec
             _decompPos = 0;
         }
 
+        /// <summary>
+        ///     Releases resources used by the stream.
+        /// </summary>
+        /// <param name="disposing">True to release managed resources.</param>
         protected override void Dispose(bool disposing)
         {
             if (_disposed) return;
@@ -424,11 +469,21 @@ public static class SnappyCodec
             base.Dispose(disposing);
         }
 
+        /// <summary>
+        ///     Seeks to a position in the stream (not supported).
+        /// </summary>
+        /// <param name="offset">The offset to seek to.</param>
+        /// <param name="origin">The seek origin.</param>
+        /// <returns>Not supported.</returns>
         public override long Seek(long offset, SeekOrigin origin)
         {
             throw new NotSupportedException();
         }
 
+        /// <summary>
+        ///     Sets the length of the stream (not supported).
+        /// </summary>
+        /// <param name="value">The length to set.</param>
         public override void SetLength(long value)
         {
             throw new NotSupportedException();

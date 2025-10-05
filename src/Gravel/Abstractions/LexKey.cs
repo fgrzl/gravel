@@ -13,23 +13,50 @@ namespace Gravel.Abstractions;
 /// </summary>
 public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexKey>, IComparable<LexKey>
 {
+    /// <summary>
+    /// Separator byte used between key parts.
+    /// </summary>
     public const byte Separator = 0x00;
+    /// <summary>
+    /// End marker byte used for last key encoding.
+    /// </summary>
     public const byte EndMarker = 0xFF;
 
     readonly byte[] _bytes = bytes ?? [];
 
+    /// <summary>
+    /// Gets an empty <see cref="LexKey"/> instance.
+    /// </summary>
     public static readonly LexKey Empty = new([]);
+    /// <summary>
+    /// Gets a <see cref="LexKey"/> instance representing the last possible key.
+    /// </summary>
     public static readonly LexKey Last = Encode(EndMarker);
 
+    /// <summary>
+    /// Gets the encoded bytes of the key.
+    /// </summary>
     public ReadOnlyMemory<byte> Bytes => _bytes;
+    /// <summary>
+    /// Returns true if the key is empty.
+    /// </summary>
     public bool IsEmpty => _bytes.Length == 0;
 
+    /// <summary>
+    /// Returns the key as a hexadecimal string.
+    /// </summary>
+    /// <returns>Hexadecimal string representation of the key.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public string ToHexString()
     {
         return _bytes.Length == 0 ? string.Empty : Convert.ToHexString(_bytes);
     }
 
+    /// <summary>
+    /// Creates a <see cref="LexKey"/> from a hexadecimal string.
+    /// </summary>
+    /// <param name="hex">The hex string.</param>
+    /// <returns>A new <see cref="LexKey"/> instance.</returns>
     public static LexKey FromHexString(string hex)
     {
         if (string.IsNullOrEmpty(hex))
@@ -39,6 +66,11 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return new LexKey(bytes);
     }
 
+    /// <summary>
+    /// Creates a new <see cref="LexKey"/> from heterogeneous parts.
+    /// </summary>
+    /// <param name="parts">The parts to encode.</param>
+    /// <returns>A new <see cref="LexKey"/> instance.</returns>
     public static LexKey New(params object?[] parts)
     {
         if (parts.Length == 0)
@@ -80,11 +112,21 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         }
     }
 
+    /// <summary>
+    /// Encodes heterogeneous parts into a <see cref="LexKey"/>.
+    /// </summary>
+    /// <param name="parts">The parts to encode.</param>
+    /// <returns>A new <see cref="LexKey"/> instance.</returns>
     public static LexKey Encode(params object?[] parts)
     {
         return New(parts);
     }
 
+    /// <summary>
+    /// Encodes parts and appends a separator byte.
+    /// </summary>
+    /// <param name="parts">The parts to encode.</param>
+    /// <returns>A new <see cref="LexKey"/> instance.</returns>
     public static LexKey EncodeFirst(params object?[] parts)
     {
         var prefix = Encode(parts);
@@ -94,6 +136,11 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return new LexKey(dst);
     }
 
+    /// <summary>
+    /// Encodes parts and appends an end marker byte.
+    /// </summary>
+    /// <param name="parts">The parts to encode.</param>
+    /// <returns>A new <see cref="LexKey"/> instance.</returns>
     public static LexKey EncodeLast(params object?[] parts)
     {
         var prefix = Encode(parts);
@@ -103,6 +150,12 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return new LexKey(dst);
     }
 
+    /// <summary>
+    /// Encodes a single part into the provided span.
+    /// </summary>
+    /// <param name="value">The value to encode.</param>
+    /// <param name="destination">The destination span.</param>
+    /// <returns>The number of bytes written.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int EncodePartToSpan(object? value, Span<byte> destination)
     {
@@ -170,6 +223,11 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         }
     }
 
+    /// <summary>
+    /// Parses a hexadecimal character to its byte value.
+    /// </summary>
+    /// <param name="c">The hex character.</param>
+    /// <returns>The byte value.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int ParseHexChar(char c)
     {
@@ -179,6 +237,11 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         throw new FormatException($"Invalid hex char: {c}");
     }
 
+    /// <summary>
+    /// Estimates the total size in bytes for the encoded key parts.
+    /// </summary>
+    /// <param name="parts">The parts to estimate.</param>
+    /// <returns>The estimated size in bytes.</returns>
     static int EstimateSize(object?[] parts)
     {
         var size = 0;
@@ -204,6 +267,12 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return size;
     }
 
+    /// <summary>
+    /// Encodes a signed 64-bit integer to a canonical big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <param name="destination">The destination span.</param>
+    /// <returns>The number of bytes written.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int EncodeInt64(long v, Span<byte> destination)
     {
@@ -211,6 +280,12 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return 8;
     }
 
+    /// <summary>
+    /// Encodes a signed 16-bit integer to a canonical big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <param name="destination">The destination span.</param>
+    /// <returns>The number of bytes written.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int EncodeInt16(short v, Span<byte> destination)
     {
@@ -218,6 +293,12 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return 2;
     }
 
+    /// <summary>
+    /// Encodes an unsigned 16-bit integer to a big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <param name="destination">The destination span.</param>
+    /// <returns>The number of bytes written.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int EncodeUInt16(ushort v, Span<byte> destination)
     {
@@ -225,6 +306,12 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return 2;
     }
 
+    /// <summary>
+    /// Encodes an unsigned 32-bit integer to a big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <param name="destination">The destination span.</param>
+    /// <returns>The number of bytes written.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int EncodeUInt32(uint v, Span<byte> destination)
     {
@@ -232,6 +319,12 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return 4;
     }
 
+    /// <summary>
+    /// Encodes an unsigned 64-bit integer to a big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <param name="destination">The destination span.</param>
+    /// <returns>The number of bytes written.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int EncodeUInt64(ulong v, Span<byte> destination)
     {
@@ -239,6 +332,12 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return 8;
     }
 
+    /// <summary>
+    /// Encodes a 32-bit floating point value to a canonical big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <param name="destination">The destination span.</param>
+    /// <returns>The number of bytes written.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int EncodeFloat32(float v, Span<byte> destination)
     {
@@ -251,6 +350,12 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return 4;
     }
 
+    /// <summary>
+    /// Encodes a 64-bit floating point value to a canonical big-endian byte array.
+    /// </summary>
+    /// <param name="v">The value to encode.</param>
+    /// <param name="destination">The destination span.</param>
+    /// <returns>The number of bytes written.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int EncodeFloat64(double v, Span<byte> destination)
     {
@@ -263,22 +368,40 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return 8;
     }
 
-    // Equality and comparison implementations
+    /// <summary>
+    /// Determines whether this key is equal to another <see cref="LexKey"/>.
+    /// </summary>
+    /// <param name="other">The other key.</param>
+    /// <returns>True if equal, otherwise false.</returns>
     public bool Equals(LexKey other)
     {
         return SpanEquals(_bytes.AsSpan(), other._bytes.AsSpan());
     }
 
+    /// <summary>
+    /// Determines whether this key is equal to another object.
+    /// </summary>
+    /// <param name="obj">The object to compare.</param>
+    /// <returns>True if equal, otherwise false.</returns>
     public override bool Equals(object? obj)
     {
         return obj is LexKey k && Equals(k);
     }
 
+    /// <summary>
+    /// Gets the hash code for this key.
+    /// </summary>
+    /// <returns>The hash code.</returns>
     public override int GetHashCode()
     {
         return ComputeHash(_bytes.AsSpan());
     }
 
+    /// <summary>
+    /// Computes a hash for the given span using xxHash64.
+    /// </summary>
+    /// <param name="span">The byte span.</param>
+    /// <returns>The computed hash code.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int ComputeHash(ReadOnlySpan<byte> span)
     {
@@ -287,6 +410,12 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return (int)(h ^ h >> 32);
     }
 
+    /// <summary>
+    /// Compares two byte spans for equality using hardware acceleration if available.
+    /// </summary>
+    /// <param name="a">The first span.</param>
+    /// <param name="b">The second span.</param>
+    /// <returns>True if equal, otherwise false.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static bool SpanEquals(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b)
     {
@@ -325,6 +454,12 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return true;
     }
 
+    /// <summary>
+    /// Compares two byte spans lexicographically using hardware acceleration if available.
+    /// </summary>
+    /// <param name="a">The first span.</param>
+    /// <param name="b">The second span.</param>
+    /// <returns>Negative if a &lt; b, zero if equal, positive if a &gt; b.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int SpanCompare(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b)
     {
@@ -367,21 +502,44 @@ public readonly struct LexKey(byte[] bytes) : IEquatable<LexKey>, IComparer<LexK
         return a.Length - b.Length;
     }
 
+    /// <summary>
+    /// Determines whether two <see cref="LexKey"/> instances are equal.
+    /// </summary>
+    /// <param name="left">The first key.</param>
+    /// <param name="right">The second key.</param>
+    /// <returns>True if equal, otherwise false.</returns>
     public static bool operator ==(LexKey left, LexKey right)
     {
         return left.Equals(right);
     }
 
+    /// <summary>
+    /// Determines whether two <see cref="LexKey"/> instances are not equal.
+    /// </summary>
+    /// <param name="left">The first key.</param>
+    /// <param name="right">The second key.</param>
+    /// <returns>True if not equal, otherwise false.</returns>
     public static bool operator !=(LexKey left, LexKey right)
     {
         return !left.Equals(right);
     }
 
+    /// <summary>
+    /// Compares two <see cref="LexKey"/> instances for lexicographic order.
+    /// </summary>
+    /// <param name="x">The first key.</param>
+    /// <param name="y">The second key.</param>
+    /// <returns>-1 if x &lt; y, 0 if equal, 1 if x &gt; y.</returns>
     public int Compare(LexKey x, LexKey y)
     {
         return SpanCompare(x._bytes.AsSpan(), y._bytes.AsSpan());
     }
 
+    /// <summary>
+    /// Compares this key to another <see cref="LexKey"/> for lexicographic order.
+    /// </summary>
+    /// <param name="other">The other key.</param>
+    /// <returns>-1 if this &lt; other, 0 if equal, 1 if this &gt; other.</returns>
     public int CompareTo(LexKey other)
     {
         return Compare(this, other);
