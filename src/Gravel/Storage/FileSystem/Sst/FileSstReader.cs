@@ -210,19 +210,52 @@ public sealed class FileSstReader : ISstReader
         var compType = buf.Span[dataLen];
         var storedCrc = BinaryPrimitives.ReadUInt32LittleEndian(buf.Span.Slice(dataLen + 1, 4));
 
-        Span<byte> crcInput = stackalloc byte[dataLen + 1];
-        buf.Span[..dataLen].CopyTo(crcInput);
-        crcInput[^1] = compType;
-        if (Crc32C.Compute(crcInput) != storedCrc)
-            throw new InvalidDataException("CRC mismatch in block");
+        ValidateBlockCrc(buf.Span[..dataLen], compType, storedCrc);
 
         return compType switch
         {
-            (byte)CompressionKind.None => buf[..dataLen].ToArray(),
-            (byte)CompressionKind.Snappy => _compressorFactory.Get(CompressionKind.Snappy)
-                .Decompress(buf[..dataLen].ToArray()),
+            (byte)CompressionKind.None => CopyUncompressedBlock(buf.Span[..dataLen]),
+            (byte)CompressionKind.Snappy => DecompressSnappyBlock(buf.Span[..dataLen]),
             _ => throw new NotSupportedException($"Compression {compType} not supported")
         };
+    }
+
+    static void ValidateBlockCrc(ReadOnlySpan<byte> data, byte compType, uint expectedCrc)
+    {
+        Span<byte> crcInput = stackalloc byte[data.Length + 1];
+        data.CopyTo(crcInput);
+        crcInput[^1] = compType;
+        if (Crc32C.Compute(crcInput) != expectedCrc)
+            throw new InvalidDataException("CRC mismatch in block");
+    }
+
+    static byte[] CopyUncompressedBlock(ReadOnlySpan<byte> data)
+    {
+        var pooled = ArrayPool<byte>.Shared.Rent(data.Length);
+        data.CopyTo(pooled);
+        var result = new byte[data.Length];
+        pooled.AsSpan(0, data.Length).CopyTo(result);
+        ArrayPool<byte>.Shared.Return(pooled);
+        return result;
+    }
+
+    byte[] DecompressSnappyBlock(ReadOnlySpan<byte> data)
+    {
+        var compressor = _compressorFactory.Get(CompressionKind.Snappy);
+        if (!compressor.TryGetDecompressedLength(data, out var uncompLen))
+            return compressor.Decompress(data);
+
+        var pooled = ArrayPool<byte>.Shared.Rent(uncompLen);
+        if (compressor.TryDecompress(data, pooled, out var written) && written == uncompLen)
+        {
+            var result = new byte[uncompLen];
+            pooled.AsSpan(0, uncompLen).CopyTo(result);
+            ArrayPool<byte>.Shared.Return(pooled);
+            return result;
+        }
+        ArrayPool<byte>.Shared.Return(pooled);
+        // fallback to legacy API
+        return compressor.Decompress(data);
     }
 
     static List<(byte[] key, byte[] value)> ParseKeyValueBlock(byte[] raw)
@@ -286,57 +319,65 @@ public sealed class FileSstReader : ISstReader
         {
             while (pos < restartsOff)
             {
-                var shared = (int)Varint.Read32(raw, ref pos);
-                var unshared = (int)Varint.Read32(raw, ref pos);
-                var vlen = (int)Varint.Read32(raw, ref pos);
-
-                var needed = shared + unshared;
-                if (needed > keyBuf.Length)
-                {
-                    var newBuf = ArrayPool<byte>.Shared.Rent(Math.Max(needed, keyBuf.Length * 2));
-                    if (shared > 0 && keyLen >= shared)
-                        Array.Copy(keyBuf, 0, newBuf, 0, shared);
-                    ArrayPool<byte>.Shared.Return(keyBuf);
-                    keyBuf = newBuf;
-                }
-
-                raw.AsSpan(pos, unshared).CopyTo(keyBuf.AsSpan(shared));
-                keyLen = shared + unshared;
-                pos += unshared;
-
-                var valueSpan = raw.AsSpan(pos, vlen);
-                pos += vlen;
-
-                if (keyLen < 8) continue;
-                var trailer = BinaryPrimitives.ReadUInt64LittleEndian(keyBuf.AsSpan(keyLen - 8, 8));
-                var seq = trailer >> 8;
-                var rawType = (byte)(trailer & 0xFF);
-                var type = rawType switch
-                {
-                    1 => DbEntryKind.Put,
-                    0 => DbEntryKind.DeleteKey,
-                    2 => DbEntryKind.DeleteRange,
-                    _ => throw new InvalidDataException("Unknown entry type in data block")
-                };
-                var userLen = keyLen - 8;
-
-                var keyArr = new byte[userLen];
-                Array.Copy(keyBuf, 0, keyArr, 0, userLen);
-                var valArr = valueSpan.ToArray();
-
-                yield return type switch
-                {
-                    DbEntryKind.Put => DbEntry.Put(keyArr, valArr, seq),
-                    DbEntryKind.DeleteKey => DbEntry.DeleteKey(keyArr, seq),
-                    DbEntryKind.DeleteRange => DbEntry.DeleteRange(keyArr, valArr, seq),
-                    _ => throw new InvalidDataException("Unknown entry type in data block")
-                };
+                ParseEntry(raw, ref pos, keyBuf, ref keyLen, out var entry);
+                if (entry != null)
+                    yield return entry.Value;
             }
         }
         finally
         {
             ArrayPool<byte>.Shared.Return(keyBuf);
         }
+    }
+
+    static void ParseEntry(byte[] raw, ref int pos, byte[] keyBuf, ref int keyLen, out DbEntry? entry)
+    {
+        entry = null;
+        var shared = (int)Varint.Read32(raw, ref pos);
+        var unshared = (int)Varint.Read32(raw, ref pos);
+        var vlen = (int)Varint.Read32(raw, ref pos);
+
+        var needed = shared + unshared;
+        if (needed > keyBuf.Length)
+        {
+            var newBuf = ArrayPool<byte>.Shared.Rent(Math.Max(needed, keyBuf.Length * 2));
+            if (shared > 0 && keyLen >= shared)
+                Array.Copy(keyBuf, 0, newBuf, 0, shared);
+            ArrayPool<byte>.Shared.Return(keyBuf);
+            keyBuf = newBuf;
+        }
+
+        raw.AsSpan(pos, unshared).CopyTo(keyBuf.AsSpan(shared));
+        keyLen = shared + unshared;
+        pos += unshared;
+
+        var valueSpan = raw.AsSpan(pos, vlen);
+        pos += vlen;
+
+        if (keyLen < 8) return;
+        var trailer = BinaryPrimitives.ReadUInt64LittleEndian(keyBuf.AsSpan(keyLen - 8, 8));
+        var seq = trailer >> 8;
+        var rawType = (byte)(trailer & 0xFF);
+        var type = rawType switch
+        {
+            1 => DbEntryKind.Put,
+            0 => DbEntryKind.DeleteKey,
+            2 => DbEntryKind.DeleteRange,
+            _ => throw new InvalidDataException("Unknown entry type in data block")
+        };
+        var userLen = keyLen - 8;
+
+        var keyArr = new byte[userLen];
+        Array.Copy(keyBuf, 0, keyArr, 0, userLen);
+        var valArr = valueSpan.ToArray();
+
+        entry = type switch
+        {
+            DbEntryKind.Put => DbEntry.Put(keyArr, valArr, seq),
+            DbEntryKind.DeleteKey => DbEntry.DeleteKey(keyArr, seq),
+            DbEntryKind.DeleteRange => DbEntry.DeleteRange(keyArr, valArr, seq),
+            _ => null
+        };
     }
 
     // ---------------------------------------------------------------------
