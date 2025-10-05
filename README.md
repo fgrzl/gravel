@@ -32,12 +32,9 @@ Look in `src/Gravel` for the concrete implementations. Notable components:
 
 ## ✨ Features
 
-- ❌✅ Insert semantics
-  - `Insert` is conditional and will fail if the key already exists (creation-only semantic).
-  - `Put` performs an upsert (overwrite) and follows last-write-wins ordering.
-
 - 🔁 Put, Delete, Range Delete
-  - `Put`: insert or overwrite a key.
+  - `Insert` is conditional and will fail if the key already exists (creation-only semantics).
+  - `Put`: insert or overwrite a key (upsert semantics).
   - `Delete`: single-key tombstone; removed during compaction.
   - `Range Delete`: range tombstone semantics merged at compaction to remove keys in the range.
 
