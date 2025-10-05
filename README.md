@@ -24,8 +24,8 @@ Look in `src/Gravel` for the concrete implementations. Notable components:
 - 📦 SSTable (on-disk)
   - Writer/reader for immutable, sorted table files.
   - Block-oriented layout with restart points and block indexes.
-  - Sparse top-level indexes (configurable) to trade memory for a small extra seek.
-  - Bloom filters - Per-table (or per-block) probabilistic filters with tunable false-positive rates to avoid unnecessary disk reads.
+  - Sparse top-level indexes to optimize seeks.
+  - Bloom filters - probabilistic filters with tunable false-positive rates to avoid unnecessary disk reads.
 
 - ⚙️ Compaction & background workers
   - Merge SSTables, apply tombstones/range deletes, produce compacted files; cancellable and observable worker tasks.
