@@ -52,12 +52,12 @@ public class CompactorRangeTests : IAsyncLifetime
         return DbEntry.Put(B(k), B(v), seq);
     }
 
-    static DbEntry DK(string k, ulong seq)
+    static DbEntry Dk(string k, ulong seq)
     {
         return DbEntry.DeleteKey(B(k), seq);
     }
 
-    static DbEntry DR(string s, string e, ulong seq)
+    static DbEntry Dr(string s, string e, ulong seq)
     {
         return DbEntry.DeleteRange(B(s), B(e), seq);
     }
@@ -90,7 +90,7 @@ public class CompactorRangeTests : IAsyncLifetime
     {
         // Arrange: f1 has put b@10, f2 has range [a,c)@11 that covers b
         var f1 = MakeMemFile(P("b", "1", 10));
-        var f2 = MakeMemFile(DR("a", "c", 11));
+        var f2 = MakeMemFile(Dr("a", "c", 11));
         var files = new List<SstFile> { f1, f2 };
 
         // Act: merge and write to a file
@@ -114,8 +114,8 @@ public class CompactorRangeTests : IAsyncLifetime
     public async Task should_drop_puts_given_overlapping_ranges_when_compacting()
     {
         // Arrange: f1 has [a,m)@5; f2 has [f,z)@7 and put g@6 (covered by [f,z)@7)
-        var f1 = MakeMemFile(DR("a", "m", 5));
-        var f2 = MakeMemFile(DR("f", "z", 7), P("g", "v", 6));
+        var f1 = MakeMemFile(Dr("a", "m", 5));
+        var f2 = MakeMemFile(Dr("f", "z", 7), P("g", "v", 6));
         var files = new List<SstFile> { f1, f2 };
 
         // Act: merge and write to a file

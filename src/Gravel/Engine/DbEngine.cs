@@ -27,9 +27,9 @@ public class DbEngine : IDbEngine
     readonly string _sstDir;
     readonly ISstFactory _sstFactory;
     readonly string _walDir;
-    readonly IWalFactory _walFactory;
+    readonly WalManager _walManager;
     readonly IWalWriter _walWriter;
-    readonly BackupManager _backup_manager;
+    readonly BackupManager _backupManager;
     readonly TransactionManager _txnManager;
 
     bool _disposed;
@@ -47,15 +47,16 @@ public class DbEngine : IDbEngine
     {
         _options = options.Value;
 
-        _walFactory = walFactory;
-        _sstFactory = sstFactory;
-        _logger = logger;
-
-        // Use configured paths; fall back to sensible defaults under DatabasePath
         _walDir = string.IsNullOrEmpty(_options.WalPath)
             ? Path.Combine(_options.DatabasePath, "wal")
             : _options.WalPath!;
-        _walWriter = _walFactory.CreateWriter(_walDir);
+
+        // Store factories and logger
+        _sstFactory = sstFactory ?? throw new ArgumentNullException(nameof(sstFactory));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        _walManager = new WalManager(walFactory, _walDir);
+        _walWriter = _walManager.WalWriter;
 
         _sstDir = string.IsNullOrEmpty(_options.SstPath)
             ? Path.Combine(_options.DatabasePath, "sst")
@@ -66,7 +67,7 @@ public class DbEngine : IDbEngine
         _compactionWorker = compactionWorker;
         Log.EngineCreated(_logger, _options.DatabasePath, _walDir, _sstDir, levelCount);
 
-        _backup_manager = new BackupManager(_walWriter, _levels, _sstDir, _walDir, _logger);
+        _backupManager = new BackupManager(_walWriter, _levels, _sstDir, _walDir, _logger);
 
         // Transaction manager orchestrates commits and memtable application.
         _txnManager = new TransactionManager(
@@ -115,32 +116,8 @@ public class DbEngine : IDbEngine
                     }
             }
 
-            await using var rdr = _walFactory.CreateReader(_walDir);
-            var staging = new List<DbEntry>();
-            var replayed = 0;
-            await foreach (var rec in rdr.ReplayAsync(ct))
-            {
-                ct.ThrowIfCancellationRequested();
-                switch (rec.Type)
-                {
-                    case WalConstants.RecordBeginTxn: staging.Clear(); break;
-                    case WalConstants.RecordEntry:
-                        if (rec.Entry.HasValue)
-                        {
-                            staging.Add(rec.Entry.Value);
-                            replayed++;
-                        }
-
-                        break;
-                    case WalConstants.RecordCommitTxn:
-                        // Apply all staged WAL entries atomically into the memtable via manager
-                        _memTableManager.ApplyStagedEntries(staging);
-                        staging.Clear();
-                        break;
-                    case WalConstants.RecordRollbackTxn: staging.Clear(); break;
-                }
-            }
-
+            // Replay WAL into memtable using WalManager to keep DbEngine slim
+            var replayed = await _walManager.ReplayIntoMemTableAsync(_memTableManager, ct).ConfigureAwait(false);
             TelemetrySources.WalReplayed.Add(replayed);
             Log.WalReplayedDetailed(_logger, replayed, _memTableManager.MemTable.Count);
             _initialized = true;
@@ -315,7 +292,7 @@ public class DbEngine : IDbEngine
     public async ValueTask<IGravelTransaction> BeginTransactionAsync(CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
-        var begin = _walWriter.LastSequence;
+        var begin = _walManager.LastSequence;
         var id = (ulong)Interlocked.Increment(ref _nextTxnId);
         Log.BeginTransactionCreated(_logger, id, begin);
         return new Transaction(this, id, begin);
@@ -327,7 +304,7 @@ public class DbEngine : IDbEngine
         if (_disposed) return;
         _disposed = true;
         Log.Disposed(_logger);
-        _walWriter.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _walManager.Dispose();
         _commitGate.Dispose();
         _initGate.Dispose();
         var snapshot = _levels.SnapshotLevels();
@@ -349,7 +326,7 @@ public class DbEngine : IDbEngine
         if (_disposed) return;
         _disposed = true;
         Log.Disposed(_logger);
-        await _walWriter.DisposeAsync();
+        await _walManager.DisposeAsync();
         _commitGate.Dispose();
         _initGate.Dispose();
         var snapshot = _levels.SnapshotLevels();
@@ -392,7 +369,7 @@ public class DbEngine : IDbEngine
         options ??= new BackupOptions();
         await EnsureInitializedAsync(ct);
 
-        await _backup_manager.BackupAsync(destinationPath, options, _commitGate, FlushMemTableAsync, ct).ConfigureAwait(false);
+        await _backupManager.BackupAsync(destinationPath, options, _commitGate, FlushMemTableAsync, ct).ConfigureAwait(false);
     }
 
     public async ValueTask RestoreAsync(
@@ -404,7 +381,7 @@ public class DbEngine : IDbEngine
         if (options.RequireEngineStopped && !_disposed && _initialized)
             throw new GravelInvalidOperationException("Restore requires the engine to be offline or uninitialized.");
 
-        await _backup_manager.RestoreAsync(archivePath, options, _options.DatabasePath, ct).ConfigureAwait(false);
+        await _backupManager.RestoreAsync(archivePath, options, _options.DatabasePath, ct).ConfigureAwait(false);
     }
 
     static ulong NextSeq(ref ulong seq)
@@ -429,7 +406,7 @@ public class DbEngine : IDbEngine
 
     async ValueTask FlushMemTableAsync(CancellationToken ct)
     {
-        var seqTag = _walWriter.LastSequence;
+        var seqTag = _walManager.LastSequence;
         var dir = Path.Combine(_sstDir, "L0");
         // Directory.CreateDirectory(dir); // removed: let factory handle directory creation
         var path = Path.Combine(dir, $"{seqTag:D20}.sst");
@@ -459,7 +436,7 @@ public class DbEngine : IDbEngine
         await MaybeCompactAsync(ct).ConfigureAwait(false);
     }
 
-    static async IAsyncEnumerable<DbEntry> EnumerateMemTableEntriesAsync(
+    public static async IAsyncEnumerable<DbEntry> EnumerateMemTableEntriesAsync(
         MemTable mt,
         [EnumeratorCancellation] CancellationToken ct)
     {
@@ -672,9 +649,11 @@ public class DbEngine : IDbEngine
             act?.SetTag("key.len", m.Key.Length);
 
             Log.SingleCommitStarting(_logger, txnId, m.Op, m.Key.Length);
-            await _walWriter.BeginTransactionAsync(txnId, ct).ConfigureAwait(false);
             var existed = false;
             var seq = NextSeq(ref _seq);
+
+            // Validate and prepare entry to write
+            DbEntry entry;
             switch (m.Op)
             {
                 case MutationOp.Insert:
@@ -682,24 +661,25 @@ public class DbEngine : IDbEngine
                         throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
                     if (await KeyExistsInSstAsync(m.Key, ct).ConfigureAwait(false))
                         throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
-                    await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct).ConfigureAwait(false);
+                    entry = DbEntry.Put(m.Key, m.Value, seq);
                     break;
                 case MutationOp.Put:
-                    await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct).ConfigureAwait(false);
+                    entry = DbEntry.Put(m.Key, m.Value, seq);
                     break;
                 case MutationOp.Delete:
                     existed = _memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out var knd) && knd == DbEntryKind.Put;
-                    await _walWriter.AppendAsync(txnId, DbEntry.DeleteKey(m.Key, seq), ct).ConfigureAwait(false);
+                    entry = DbEntry.DeleteKey(m.Key, seq);
                     break;
                 case MutationOp.DeleteRange:
-                    await _walWriter.AppendAsync(txnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct).ConfigureAwait(false);
+                    entry = DbEntry.DeleteRange(m.Key, m.RangeEnd, seq);
                     break;
                 default:
                     throw new GravelInvalidOperationException("Unknown mutation op");
             }
 
-            await _walWriter.CommitTransactionAsync(txnId, ct).ConfigureAwait(false);
-            if (_options.WalSyncOnCommit) await _walWriter.FlushAsync(ct).ConfigureAwait(false);
+            // Use WalManager to perform the transactional WAL write
+            await _walManager.WriteTransactionAsync(txnId, new[] { entry }, _options.WalSyncOnCommit, ct).ConfigureAwait(false);
+
             switch (m.Op)
             {
                 case MutationOp.Put:
