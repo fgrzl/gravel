@@ -658,7 +658,7 @@ public class DbEngine : IDbEngine
             }
 
             // Use WalManager to perform the transactional WAL write
-            await _walManager.WriteTransactionAsync(txnId, new[] { entry }, _options.WalSyncOnCommit, ct).ConfigureAwait(false);
+            await _walManager.WriteTransactionAsync(txnId, [entry], _options.WalSyncOnCommit, ct).ConfigureAwait(false);
 
             switch (m.Op)
             {

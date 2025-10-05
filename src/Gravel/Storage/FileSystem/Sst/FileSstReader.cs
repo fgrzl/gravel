@@ -206,8 +206,8 @@ public sealed class FileSstReader : ISstReader
 
     static BlockHandle DecodeBlockHandle(ReadOnlySpan<byte> span)
     {
-        var off = Varint.Read64(ref span);
-        var size = Varint.Read64(ref span);
+        var off = VarInt.Read64(ref span);
+        var size = VarInt.Read64(ref span);
         return new BlockHandle(off, size);
     }
 
@@ -279,11 +279,11 @@ public sealed class FileSstReader : ISstReader
         var pos = 0;
         while (pos < raw.Length)
         {
-            var klen = (int)Varint.Read32(raw, ref pos);
+            var klen = (int)VarInt.Read32(raw, ref pos);
             var key = raw.AsSpan(pos, klen).ToArray();
             pos += klen;
 
-            var vlen = (int)Varint.Read32(raw, ref pos);
+            var vlen = (int)VarInt.Read32(raw, ref pos);
             var val = raw.AsSpan(pos, vlen).ToArray();
             pos += vlen;
 
@@ -299,11 +299,11 @@ public sealed class FileSstReader : ISstReader
         var pos = 0;
         while (pos < raw.Length)
         {
-            var slen = (int)Varint.Read32(raw, ref pos);
+            var slen = (int)VarInt.Read32(raw, ref pos);
             var start = raw.AsSpan(pos, slen).ToArray();
             pos += slen;
 
-            var elen = (int)Varint.Read32(raw, ref pos);
+            var elen = (int)VarInt.Read32(raw, ref pos);
             var end = raw.AsSpan(pos, elen).ToArray();
             pos += elen;
 
@@ -342,9 +342,9 @@ public sealed class FileSstReader : ISstReader
     static void ParseEntry(byte[] raw, ref int pos, byte[] keyBuf, ref int keyLen, out DbEntry? entry)
     {
         entry = null;
-        var shared = (int)Varint.Read32(raw, ref pos);
-        var unshared = (int)Varint.Read32(raw, ref pos);
-        var vlen = (int)Varint.Read32(raw, ref pos);
+        var shared = (int)VarInt.Read32(raw, ref pos);
+        var unshared = (int)VarInt.Read32(raw, ref pos);
+        var vlen = (int)VarInt.Read32(raw, ref pos);
 
         var needed = shared + unshared;
         if (needed > keyBuf.Length)

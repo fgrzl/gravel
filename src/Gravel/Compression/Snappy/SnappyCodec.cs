@@ -17,132 +17,172 @@ public static class SnappyCodec
     // Public API: compress/decompress
     public static byte[] Compress(ReadOnlySpan<byte> input)
     {
-        var n = input.Length;
-        if (n == 0) return [0]; // varint zero only
+        if (input.IsEmpty) return [0];
+        Span<byte> outBuf = stackalloc byte[input.Length + 10];
+        var offset = WriteVarInt(outBuf, (uint)input.Length);
+        offset += WriteLiteral(outBuf[offset..], input);
+        return outBuf[..offset].ToArray();
+    }
 
-        // Simplified encoder: always emit uncompressed literal block after varint length.
-        // varint length may take up to 5 bytes for 32-bit
-        var maxOverhead = 5 + 1 + 4; // varint + tag + potential length bytes
-        var outBuf = new byte[n + maxOverhead];
-        var dst = 0;
+    public static bool TryCompress(ReadOnlySpan<byte> input, Span<byte> destination, out int bytesWritten)
+    {
+        if (input.IsEmpty)
+        {
+            if (destination.Length < 1)
+            {
+                bytesWritten = 0;
+                return false;
+            }
 
-        // write uncompressed length as varint
-        dst += WriteVarint(outBuf, dst, (uint)n);
+            destination[0] = 0;
+            bytesWritten = 1;
+            return true;
+        }
 
-        // write single literal for entire input
-        dst += WriteLiteral(outBuf.AsSpan(dst), input);
+        if (destination.Length < input.Length + 10)
+        {
+            bytesWritten = 0;
+            return false;
+        }
 
-        var result = new byte[dst];
-        Buffer.BlockCopy(outBuf, 0, result, 0, dst);
-        return result;
+        var offset = WriteVarInt(destination, (uint)input.Length);
+        offset += WriteLiteral(destination[offset..], input);
+        bytesWritten = offset;
+        return true;
     }
 
     public static byte[] Decompress(ReadOnlySpan<byte> input)
     {
         var pos = 0;
-        if (!TryReadVarint(input, ref pos, out var expected))
+        if (!TryReadVarInt(input, ref pos, out var expected))
             throw new InvalidDataException("Invalid Snappy stream: cannot read uncompressed length.");
-
         var output = new byte[expected];
-        var w = 0;
-        var n = input.Length;
+        if (!TryDecompress(input, output, out var written) || written != expected)
+            throw new InvalidDataException("Decompressed length mismatch.");
+        return output;
+    }
 
-        while (pos < n)
+    public static bool TryDecompress(ReadOnlySpan<byte> input, Span<byte> destination, out int bytesWritten)
+    {
+        var pos = 0;
+        if (!TryReadVarInt(input, ref pos, out var expected) || destination.Length < expected)
+        {
+            bytesWritten = 0;
+            return false;
+        }
+
+        var written = 0;
+        while (pos < input.Length)
         {
             var tag = input[pos++];
             var kind = tag & 0x03;
             if (kind == 0)
             {
-                var literalLen = tag >> 2 & 0x3F;
-                if (literalLen < 60)
-                {
-                    literalLen += 1;
-                }
-                else
-                {
-                    var extra = literalLen - 59;
-                    if (extra is < 1 or > 4) throw new InvalidDataException("Invalid literal length encoding.");
-                    if (pos + extra > n)
-                        throw new InvalidDataException("Unexpected end of stream reading literal length.");
-                    uint lenm1 = 0;
-                    for (var i = 0; i < extra; i++)
-                        lenm1 |= (uint)input[pos++] << 8 * i;
-                    literalLen = (int)(lenm1 + 1);
-                }
+                if (TryDecodeLiteral(input, ref pos, destination, ref written))
+                    continue;
 
-                if (pos + literalLen > n)
-                    throw new InvalidDataException("Unexpected end of stream reading literal data.");
-                if (w + literalLen > output.Length)
-                    throw new InvalidDataException("Decompressed data exceeds expected length.");
+                bytesWritten = 0;
+                return false;
+            }
 
-                // bulk copy literal
-                input.Slice(pos, literalLen).CopyTo(output.AsSpan(w, literalLen));
-                pos += literalLen;
-                w += literalLen;
-            }
-            else if (kind == 1)
+            if (TryDecodeCopy(input, ref pos, kind, tag, destination, ref written)) 
+                continue;
+            bytesWritten = 0;
+            return false;
+        }
+
+        bytesWritten = written;
+        return written == expected;
+    }
+
+    // Helper for decoding literal blocks
+    static bool TryDecodeLiteral(ReadOnlySpan<byte> input, ref int pos, Span<byte> destination, ref int written)
+    {
+        var n = input.Length;
+        int tag = input[pos - 1];
+        var len = tag >> 2 & 0x3F;
+        if (len < 60) len++;
+        else
+        {
+            var extra = len - 59;
+            if (extra < 1 || extra > 4 || pos + extra > n) 
+                return false;
+
+            uint lenm1 = 0;
+            for (var i = 0; i < extra; i++)
+                lenm1 |= (uint)input[pos++] << 8 * i;
+            len = (int)(lenm1 + 1);
+        }
+
+        if (pos + len > n || written + len > destination.Length) return false;
+        input.Slice(pos, len).CopyTo(destination.Slice(written, len));
+        pos += len;
+        written += len;
+        return true;
+    }
+
+    // Helper for decoding copy blocks
+    static bool TryDecodeCopy(
+        ReadOnlySpan<byte> input, ref int pos, int kind, int tag, Span<byte> destination, ref int written)
+    {
+        var n = input.Length;
+        int offset, copyLen;
+        switch (kind)
+        {
+            case 1:
             {
-                var len = (tag >> 2 & 0x07) + 4;
-                if (pos >= n) throw new InvalidDataException("Unexpected end of stream reading COPY_1 offset.");
-                var offset = input[pos++];
-                if (offset == 0) throw new InvalidDataException("Invalid COPY offset 0.");
-                var src = w - offset;
-                if (src < 0 || w + len > output.Length) throw new InvalidDataException("COPY out of bounds.");
-                Array.Copy(output, src, output, w, len);
-                w += len;
+                copyLen = (tag >> 2 & 0x07) + 4;
+                if (pos >= n)
+                    return false;
+                offset = input[pos++];
+                break;
             }
-            else if (kind == 2)
+            case 2:
             {
-                var len = (tag >> 2 & 0x3F) + 1;
-                if (pos + 2 > n) throw new InvalidDataException("Unexpected end of stream reading COPY_2 offset.");
-                var offset = BinaryPrimitives.ReadUInt16LittleEndian(input.Slice(pos, 2));
+                copyLen = (tag >> 2 & 0x3F) + 1;
+                if (pos + 2 > n) return false;
+                offset = BinaryPrimitives.ReadUInt16LittleEndian(input.Slice(pos, 2));
                 pos += 2;
-                if (offset == 0) throw new InvalidDataException("Invalid COPY offset 0.");
-                var src = w - offset;
-                if (src < 0 || w + len > output.Length) throw new InvalidDataException("COPY out of bounds.");
-                Array.Copy(output, src, output, w, len);
-                w += len;
+                break;
             }
-            else
+            default:
             {
-                var len = (tag >> 2 & 0x3F) + 1;
-                if (pos + 4 > n) throw new InvalidDataException("Unexpected end of stream reading COPY_4 offset.");
-                var offset = BinaryPrimitives.ReadInt32LittleEndian(input.Slice(pos, 4));
+                copyLen = (tag >> 2 & 0x3F) + 1;
+                if (pos + 4 > n) return false;
+                offset = BinaryPrimitives.ReadInt32LittleEndian(input.Slice(pos, 4));
                 pos += 4;
-                if (offset == 0) throw new InvalidDataException("Invalid COPY offset 0.");
-                var src = w - offset;
-                if (src < 0 || w + len > output.Length) throw new InvalidDataException("COPY out of bounds.");
-                Array.Copy(output, src, output, w, len);
-                w += len;
+                break;
             }
         }
 
-        if (w != output.Length) throw new InvalidDataException("Decompressed length mismatch.");
-        return output;
+        if (offset == 0 || written - offset < 0 || written + copyLen > destination.Length) return false;
+        for (var i = 0; i < copyLen; i++)
+            destination[written + i] = destination[written - offset + i];
+        written += copyLen;
+        return true;
     }
 
     // -------------------- helpers --------------------
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static int WriteVarint(byte[] dst, int dstOffset, uint value)
+    static int WriteVarInt(Span<byte> dst, uint value)
     {
-        var i = dstOffset;
+        var i = 0;
         while (value >= 0x80)
         {
-            dst[i++] = (byte)(value & 0x7Fu | 0x80u);
+            dst[i++] = (byte)(value | 0x80u);
             value >>= 7;
         }
 
-        dst[i++] = (byte)(value & 0x7Fu);
-        return i - dstOffset;
+        dst[i++] = (byte)value;
+        return i;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static bool TryReadVarint(ReadOnlySpan<byte> src, ref int pos, out int value)
+    static bool TryReadVarInt(ReadOnlySpan<byte> src, ref int pos, out int value)
     {
         uint result = 0;
-        var shift = 0;
-        var start = pos;
+        int shift = 0, start = pos;
         while (pos < src.Length)
         {
             var b = src[pos++];
@@ -165,31 +205,22 @@ public static class SnappyCodec
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static int WriteLiteral(Span<byte> dst, ReadOnlySpan<byte> literal)
     {
-        var len = literal.Length;
-        var pos = 0;
-
+        int len = literal.Length, pos = 0;
         if (len <= 60)
         {
-            dst[pos++] = (byte)(len - 1 << 2 | 0);
+            dst[pos++] = (byte)(len - 1 << 2);
         }
         else
         {
             var lenm1 = (uint)(len - 1);
-            int extra;
-            if (lenm1 <= 0xFF) extra = 1;
-            else if (lenm1 <= 0xFFFF) extra = 2;
-            else if (lenm1 <= 0xFFFFFF) extra = 3;
-            else extra = 4;
-
-            var tagUpper = 60 + (extra - 1);
-            dst[pos++] = (byte)(tagUpper << 2 | 0);
+            var extra = lenm1 <= 0xFF ? 1 : lenm1 <= 0xFFFF ? 2 : lenm1 <= 0xFFFFFF ? 3 : 4;
+            dst[pos++] = (byte)(60 + (extra - 1) << 2);
             for (var i = 0; i < extra; i++)
-                dst[pos++] = (byte)(lenm1 >> 8 * i & 0xFF);
+                dst[pos++] = (byte)(lenm1 >> 8 * i);
         }
 
         literal.CopyTo(dst[pos..]);
-        pos += len;
-        return pos;
+        return pos + len;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

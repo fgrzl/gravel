@@ -27,9 +27,9 @@ sealed class DataBlockBuilder(int restartInterval = 16)
 
         Span<byte> hdr = stackalloc byte[12];
         var n = 0;
-        n += Varint.Write32(hdr[n..], (uint)shared);
-        n += Varint.Write32(hdr[n..], (uint)unshared);
-        n += Varint.Write32(hdr[n..], (uint)value.Length);
+        n += VarInt.Write32(hdr[n..], (uint)shared);
+        n += VarInt.Write32(hdr[n..], (uint)unshared);
+        n += VarInt.Write32(hdr[n..], (uint)value.Length);
         _buf.Write(hdr[..n]);
 
         if (unshared > 0) _buf.Write(key.Slice(shared, unshared));

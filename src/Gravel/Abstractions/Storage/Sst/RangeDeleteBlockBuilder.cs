@@ -30,11 +30,11 @@ sealed class RangeDeleteBlockBuilder
         Span<byte> seqBuf = stackalloc byte[8];
         foreach (var (s, e, seq) in _entries)
         {
-            var n = Varint.Write32(tmp, (uint)s.Length);
+            var n = VarInt.Write32(tmp, (uint)s.Length);
             ms.Write(tmp[..n]);
             ms.Write(s);
 
-            n = Varint.Write32(tmp, (uint)e.Length);
+            n = VarInt.Write32(tmp, (uint)e.Length);
             ms.Write(tmp[..n]);
             ms.Write(e);
 

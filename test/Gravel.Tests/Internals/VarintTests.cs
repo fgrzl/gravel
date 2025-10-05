@@ -5,7 +5,7 @@ using Xunit;
 
 namespace Gravel.Internals;
 
-public class VarintTests
+public class VarIntTests
 {
     [Theory]
     [InlineData(0u)]
@@ -21,10 +21,10 @@ public class VarintTests
         Span<byte> buf = stackalloc byte[10];
 
         // Act
-        var written = Varint.Write32(buf, value);
-        var arr = buf.Slice(0, written).ToArray();
+        var written = VarInt.Write32(buf, value);
+        var arr = buf[..written].ToArray();
         var pos = 0;
-        var read = Varint.Read32(arr, ref pos);
+        var read = VarInt.Read32(arr, ref pos);
 
         // Assert
         read.Should().Be(value);
@@ -45,9 +45,9 @@ public class VarintTests
         Span<byte> buf = stackalloc byte[20];
 
         // Act
-        var written = Varint.Write64(buf, value);
-        ReadOnlySpan<byte> span = buf.Slice(0, written);
-        var read = Varint.Read64(ref span);
+        var written = VarInt.Write64(buf, value);
+        ReadOnlySpan<byte> span = buf[..written];
+        var read = VarInt.Read64(ref span);
 
         // Assert
         read.Should().Be(value);
@@ -64,7 +64,7 @@ public class VarintTests
         var act = () =>
         {
             var p = 0;
-            Varint.Read32(arr, ref p);
+            VarInt.Read32(arr, ref p);
         };
 
         // Assert
@@ -81,7 +81,7 @@ public class VarintTests
         var act = () =>
         {
             var s = new ReadOnlySpan<byte>(arr);
-            Varint.Read64(ref s);
+            VarInt.Read64(ref s);
         };
 
         // Assert
@@ -94,7 +94,7 @@ public class VarintTests
         // Arrange
 
         // Act
-        Action act = () => Varint.Write64(new Span<byte>(new byte[1]), 0xdeadbeef);
+        Action act = () => VarInt.Write64(new Span<byte>(new byte[1]), 0xdeadbeef);
 
         // Assert
         act.Should().Throw<ArgumentException>();
@@ -111,7 +111,7 @@ public class VarintTests
         var act = () =>
         {
             var p = 0;
-            Varint.Read32(arr, ref p);
+            VarInt.Read32(arr, ref p);
         };
 
         // Assert
@@ -128,7 +128,7 @@ public class VarintTests
         var act = () =>
         {
             var s = new ReadOnlySpan<byte>(arr);
-            Varint.Read64(ref s);
+            VarInt.Read64(ref s);
         };
 
         // Assert

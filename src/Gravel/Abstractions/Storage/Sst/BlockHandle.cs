@@ -10,8 +10,8 @@ public readonly struct BlockHandle(ulong offset, ulong size)
     public int Encode(Span<byte> dst)
     {
         var n = 0;
-        n += Varint.Write64(dst[n..], Offset);
-        n += Varint.Write64(dst[n..], Size);
+        n += VarInt.Write64(dst[n..], Offset);
+        n += VarInt.Write64(dst[n..], Size);
         return n;
     }
 }

@@ -65,7 +65,7 @@ class MemTableManager
 
     public void ApplyEntry(DbEntry e)
     {
-        ApplyStagedEntries(new List<DbEntry> { e });
+        ApplyStagedEntries([e]);
     }
 
     public bool TryGetCoveringRange(ReadOnlySpan<byte> key, out ulong coveringSeq)

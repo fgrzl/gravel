@@ -253,7 +253,7 @@ internal sealed class TransactionManager(
                     MutationOp.DeleteRange => DbEntry.DeleteRange(m.Key, m.RangeEnd, seq),
                     _ => default
                 };
-                _memTableManager.ApplyStagedEntries(new List<DbEntry> { single });
+                _memTableManager.ApplyStagedEntries([single]);
 
                 TelemetrySources.Commits.Add(1);
                 Log.SingleCommitCommitted(_logger, txnId, m.Op, seq);

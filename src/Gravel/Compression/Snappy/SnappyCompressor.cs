@@ -24,46 +24,17 @@ public sealed class SnappyCompressor : IBlockCompressor
 
     public bool TryCompress(ReadOnlySpan<byte> input, Span<byte> destination, out int bytesWritten)
     {
-        // Use convenience then copy for now; could be optimized to write directly if helper exposes span-based API
-        var tmp = SnappyCodec.Compress(input);
-        if (tmp.Length > destination.Length)
-        {
-            bytesWritten = 0;
-            return false;
-        }
-
-        tmp.AsSpan().CopyTo(destination);
-        bytesWritten = tmp.Length;
-        return true;
+        return SnappyCodec.TryCompress(input, destination, out bytesWritten);
     }
 
     public bool TryDecompress(ReadOnlySpan<byte> input, Span<byte> destination, out int bytesWritten)
     {
-        // Peek uncompressed length from Snappy framing to avoid extra alloc when possible
-        if (TryGetDecompressedLength(input, out var len) && len <= destination.Length)
-        {
-            var tmp = SnappyCodec.Decompress(input);
-            tmp.AsSpan().CopyTo(destination);
-            bytesWritten = tmp.Length;
-            return true;
-        }
-
-        // Fallback
-        var outArr = SnappyCodec.Decompress(input);
-        if (outArr.Length > destination.Length)
-        {
-            bytesWritten = 0;
-            return false;
-        }
-
-        outArr.AsSpan().CopyTo(destination);
-        bytesWritten = outArr.Length;
-        return true;
+        return SnappyCodec.TryDecompress(input, destination, out bytesWritten);
     }
 
     public bool TryGetDecompressedLength(ReadOnlySpan<byte> input, out int uncompressedLength)
     {
-        // The Snappy helper supports TryReadVarint at position 0 internally; expose a lightweight probe
+        // The Snappy helper supports TryReadVarInt at position 0 internally; expose a lightweight probe
         // Re-parse varint similarly to SnappyCodec.Decompress
         var pos = 0;
         uint result = 0;

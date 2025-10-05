@@ -1,6 +1,6 @@
 ﻿namespace Gravel.Internals;
 
-public static class Varint
+public static class VarInt
 {
     public static int Write32(Span<byte> dst, uint v)
     {

@@ -89,4 +89,38 @@ public class SnappyCodecBenchmarks
         var buf = new byte[_repetitiveData.Length];
         _ = s.Read(buf, 0, buf.Length);
     }
+
+    [Benchmark]
+    public void TryCompress_Random()
+    {
+        var compressor = new SnappyCompressor();
+        var dest = new byte[compressor.GetMaxCompressedLength(_randomData.Length)];
+        compressor.TryCompress(_randomData, dest, out var written);
+    }
+
+    [Benchmark]
+    public void TryCompress_Repetitive()
+    {
+        var compressor = new SnappyCompressor();
+        var dest = new byte[compressor.GetMaxCompressedLength(_repetitiveData.Length)];
+        compressor.TryCompress(_repetitiveData, dest, out var written);
+    }
+
+    [Benchmark]
+    public void TryDecompress_Random()
+    {
+        var compressor = new SnappyCompressor();
+        compressor.TryGetDecompressedLength(_compressedRandom, out var len);
+        var dest = new byte[len];
+        compressor.TryDecompress(_compressedRandom, dest, out var written);
+    }
+
+    [Benchmark]
+    public void TryDecompress_Repetitive()
+    {
+        var compressor = new SnappyCompressor();
+        compressor.TryGetDecompressedLength(_compressedRepetitive, out var len);
+        var dest = new byte[len];
+        compressor.TryDecompress(_compressedRepetitive, dest, out var written);
+    }
 }
