@@ -9,20 +9,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Gravel.Engine.Managers;
 
-sealed class SstManager
+sealed class SstManager(ISstFactory sstFactory, Levels levels, string sstDir, ILogger logger)
 {
-    readonly ISstFactory _sstFactory;
-    readonly Levels _levels;
-    readonly string _sstDir;
-    readonly ILogger _logger;
-
-    public SstManager(ISstFactory sstFactory, Levels levels, string sstDir, ILogger logger)
-    {
-        _sstFactory = sstFactory ?? throw new ArgumentNullException(nameof(sstFactory));
-        _levels = levels ?? throw new ArgumentNullException(nameof(levels));
-        _sstDir = sstDir ?? throw new ArgumentNullException(nameof(sstDir));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    readonly ISstFactory _sstFactory = sstFactory ?? throw new ArgumentNullException(nameof(sstFactory));
+    readonly Levels _levels = levels ?? throw new ArgumentNullException(nameof(levels));
+    readonly string _sstDir = sstDir ?? throw new ArgumentNullException(nameof(sstDir));
+    readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task LoadExistingAsync(CancellationToken ct = default)
     {

@@ -282,6 +282,9 @@ public class MemTableTests
         var mt = new MemTable();
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
+        // Shared counter to ensure writer produced at least one mutation before scanning
+        var writes = 0;
+
         // Writer task: mutate memtable
         var writer = Task.Run(async () =>
         {
@@ -296,10 +299,17 @@ public class MemTableTests
                     mt.PutRangeTombstone(B("a").Span, B("z").Span, (ulong)i);
                 else
                     mt.Put(k.Span, v.Span, (ulong)i);
+
+                Interlocked.Increment(ref writes);
                 i++;
                 await Task.Yield();
             }
         }, cts.Token);
+
+        // Wait briefly for the writer to produce at least one mutation (avoid flakiness)
+        var start = DateTime.UtcNow;
+        while (Volatile.Read(ref writes) == 0 && (DateTime.UtcNow - start) < TimeSpan.FromSeconds(1))
+            await Task.Yield();
 
         // Act & Assert: Reader loop repeatedly scans; should never throw and should see non-empty at least once
         var scans = 0;
