@@ -97,7 +97,7 @@ public class DbEngine : IDbEngine
                 new KeyValuePair<string, object?>("sst.dir", _sstDir));
 
             Log.DbOpening(_logger, _options.DatabasePath);
-            for (var l = 0;; l++)
+            for (var l = 0; ; l++)
             {
                 if (l >= _levelsSnapshotCount()) break;
                 // ask factory for level files instead of reading filesystem here
@@ -133,17 +133,8 @@ public class DbEngine : IDbEngine
 
                         break;
                     case WalConstants.RecordCommitTxn:
-                        foreach (var e in staging)
-                            switch (e.Kind)
-                            {
-                                case DbEntryKind.Put: _memTableManager.MemTable.Put(e.Key.Span, e.Value.Span, e.Sequence); break;
-                                case DbEntryKind.DeleteKey: _memTableManager.MemTable.PutDeleteTombstone(e.Key.Span, e.Sequence); break;
-                                case DbEntryKind.DeleteRange:
-                                    _memTableManager.MemTable.PutRangeTombstone(e.Key.Span, e.Value.Span, e.Sequence); break;
-                                default:
-                                    throw new GravelArgumentOutOfRangeException();
-                            }
-
+                        // Apply all staged WAL entries atomically into the memtable via manager
+                        _memTableManager.ApplyStagedEntries(staging);
                         staging.Clear();
                         break;
                     case WalConstants.RecordRollbackTxn: staging.Clear(); break;
@@ -192,20 +183,12 @@ public class DbEngine : IDbEngine
         // Find latest range tombstone in memtable covering this key using range index (O(log n))
         _memTableManager.GetMemTable().TryGetCoveringRange(key.Span, out var coveringRangeSeq);
 
-        // Check memtable direct entry for this key
-        if (_memTableManager.GetMemTable().TryGet(key.Span, out var mtValue, out var mtSeq, out var mtKind))
-        {
-            if (mtKind != DbEntryKind.Put)
-                return null;
-            // Visible only if not masked by a newer range
-            return mtSeq >= coveringRangeSeq ? mtValue : null;
-
-            // DeleteKey or DeleteRange entry at exact key masks it
-        }
+        // Check memtable direct entry for this key using helper that respects covering range sequence
+        var mtValue = _memTableManager.TryGetFromMemTable(key, coveringRangeSeq);
+        if (mtValue.HasValue) return mtValue.Value;
 
         // If covered by a memtable range tombstone and no newer memtable PUT, mask immediately
-        if (coveringRangeSeq > 0)
-            return null;
+        if (coveringRangeSeq > 0) return null;
 
         // Otherwise, check SSTs: pick highest-seq entry across all files
         DbEntryKind bestKind = 0;
@@ -293,7 +276,7 @@ public class DbEngine : IDbEngine
     {
         await EnsureInitializedAsync(ct);
         Log.DeleteRangeCalled(_logger, start.Length, end.Length);
-        await CommitRangeAsync(start, end, ct);
+        await CommitSingleAsync(Mutation.DeleteRange(start, end), ct).ConfigureAwait(false);
     }
 
     public async ValueTask BatchAsync(IEnumerable<Mutation> mutations, CancellationToken ct = default)
@@ -349,8 +332,8 @@ public class DbEngine : IDbEngine
         _initGate.Dispose();
         var snapshot = _levels.SnapshotLevels();
         foreach (var lvl in snapshot)
-        foreach (var f in lvl)
-            f.Reader.Dispose();
+            foreach (var f in lvl)
+                f.Reader.Dispose();
 
         try
         {
@@ -371,8 +354,8 @@ public class DbEngine : IDbEngine
         _initGate.Dispose();
         var snapshot = _levels.SnapshotLevels();
         foreach (var lvl in snapshot)
-        foreach (var f in lvl)
-            f.Reader.Dispose();
+            foreach (var f in lvl)
+                f.Reader.Dispose();
 
         try
         {
@@ -666,197 +649,20 @@ public class DbEngine : IDbEngine
     }
 
     internal async ValueTask CommitTransactionAsync(
-        Transaction txn, IReadOnlyList<Mutation> staged,
-        CancellationToken ct)
+         Transaction txn, IReadOnlyList<Mutation> staged,
+         CancellationToken ct)
     {
-        if (staged.Count == 0) return;
-        await _commitGate.WaitAsync(ct);
-        try
-        {
-            using var act = TelemetrySources.ActivitySource.StartActivity("Commit.Transaction");
-            act?.SetTag("txn.id", txn.TxnId);
-            act?.SetTag("txn.ops", staged.Count);
-
-            Log.TransactionCommitting(_logger, txn.TxnId, staged.Count);
-            await _walWriter.BeginTransactionAsync(txn.TxnId, ct);
-            var applied = new List<Applied>(staged.Count);
-            var seenKeys = new HashSet<string>();
-            foreach (var m in staged)
-            {
-                var seq = NextSeq(ref _seq);
-                switch (m.Op)
-                {
-                    case MutationOp.Insert:
-                    {
-                        var id = Convert.ToBase64String(m.Key.ToArray());
-                        if (seenKeys.Contains(id))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (txn)");
-                        if (_memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out _))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
-                        if (await KeyExistsInSstAsync(m.Key, ct))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
-                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.Put(m.Key, m.Value, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, m.Value, m.RangeEnd, seq));
-                        seenKeys.Add(id);
-                        break;
-                    }
-                    case MutationOp.Put:
-                    {
-                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.Put(m.Key, m.Value, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, m.Value, m.RangeEnd, seq));
-                        var id = Convert.ToBase64String(m.Key.ToArray());
-                        seenKeys.Add(id);
-                        break;
-                    }
-                    case MutationOp.Delete:
-                    {
-                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.DeleteKey(m.Key, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, default, default, seq));
-                        var id = Convert.ToBase64String(m.Key.ToArray());
-                        seenKeys.Remove(id);
-                        break;
-                    }
-                    case MutationOp.DeleteRange:
-                    {
-                        await _walWriter.AppendAsync(txn.TxnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, default, m.RangeEnd, seq));
-                        break;
-                    }
-                    default:
-                        throw new GravelInvalidOperationException("Unknown mutation op");
-                }
-            }
-
-            await _walWriter.CommitTransactionAsync(txn.TxnId, ct);
-            if (_options.WalSyncOnCommit) await _walWriter.FlushAsync(ct);
-            foreach (var a in applied)
-                switch (a.Op)
-                {
-                    case MutationOp.Put:
-                    case MutationOp.Insert: _memTableManager.MemTable.Put(a.Key.Span, a.Value.Span, a.Sequence); break;
-                    case MutationOp.Delete: _memTableManager.MemTable.PutDeleteTombstone(a.Key.Span, a.Sequence); break;
-                    case MutationOp.DeleteRange:
-                        _memTableManager.MemTable.PutRangeTombstone(a.Key.Span, a.RangeEnd.Span, a.Sequence); break;
-                    default:
-                        throw new GravelArgumentOutOfRangeException();
-                }
-
-            txn.SetCommitted(_walWriter.LastSequence);
-            TelemetrySources.Commits.Add(staged.Count);
-            Log.TransactionCommitted(_logger, txn.TxnId, _walWriter.LastSequence);
-            await MaybeFlushAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            Log.TransactionCommitFailed(_logger, txn.TxnId, ex.Message);
-            try
-            {
-                await _walWriter.RollbackTransactionAsync(txn.TxnId, CancellationToken.None);
-            }
-            catch (Exception rex)
-            {
-                Log.RollbackFailed(_logger, txn.TxnId, rex.Message);
-            }
-
-            throw;
-        }
-        finally
-        {
-            _commitGate.Release();
-        }
+        await _txnManager.CommitTransactionAsync(txn, staged, ct).ConfigureAwait(false);
     }
 
     async ValueTask CommitMutationsAsync(IList<Mutation> mutations, CancellationToken ct)
     {
-        await _commitGate.WaitAsync(ct);
-        try
-        {
-            var txnId = (ulong)Interlocked.Increment(ref _nextTxnId);
-            using var act = TelemetrySources.ActivitySource.StartActivity("Commit.Batch");
-            act?.SetTag("txn.id", txnId);
-            act?.SetTag("txn.ops", mutations.Count);
-
-            Log.TransactionCommitting(_logger, txnId, mutations.Count);
-            await _walWriter.BeginTransactionAsync(txnId, ct);
-            var applied = new List<Applied>(mutations.Count);
-            var seenKeys = new HashSet<string>();
-            foreach (var m in mutations)
-            {
-                var seq = NextSeq(ref _seq);
-                switch (m.Op)
-                {
-                    case MutationOp.Insert:
-                    {
-                        var id = Convert.ToBase64String(m.Key.ToArray());
-                        if (seenKeys.Contains(id))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (batch)");
-                        if (_memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out _))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
-                        if (await KeyExistsInSstAsync(m.Key, ct))
-                            throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
-                        await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, m.Value, m.RangeEnd, seq));
-                        seenKeys.Add(id);
-                        break;
-                    }
-                    case MutationOp.Put:
-                    {
-                        await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, m.Value, m.RangeEnd, seq));
-                        var id = Convert.ToBase64String(m.Key.ToArray());
-                        seenKeys.Add(id);
-                        break;
-                    }
-                    case MutationOp.Delete:
-                    {
-                        await _walWriter.AppendAsync(txnId, DbEntry.DeleteKey(m.Key, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, default, default, seq));
-                        var id = Convert.ToBase64String(m.Key.ToArray());
-                        seenKeys.Remove(id);
-                        break;
-                    }
-                    case MutationOp.DeleteRange:
-                    {
-                        await _walWriter.AppendAsync(txnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct);
-                        applied.Add(new Applied(m.Op, m.Key, default, m.RangeEnd, seq));
-                        break;
-                    }
-                    default: throw new GravelInvalidOperationException("Unknown mutation op");
-                }
-            }
-
-            await _walWriter.CommitTransactionAsync(txnId, ct);
-            if (_options.WalSyncOnCommit) await _walWriter.FlushAsync(ct);
-            foreach (var a in applied)
-                switch (a.Op)
-                {
-                    case MutationOp.Put:
-                    case MutationOp.Insert: _memTableManager.MemTable.Put(a.Key.Span, a.Value.Span, a.Sequence); break;
-                    case MutationOp.Delete: _memTableManager.MemTable.PutDeleteTombstone(a.Key.Span, a.Sequence); break;
-                    case MutationOp.DeleteRange:
-                        _memTableManager.MemTable.PutRangeTombstone(a.Key.Span, a.RangeEnd.Span, a.Sequence); break;
-                    default:
-                        throw new GravelArgumentOutOfRangeException();
-                }
-
-            TelemetrySources.Commits.Add(mutations.Count);
-            Log.MutationsBatchCommitted(_logger, txnId);
-            await MaybeFlushAsync(ct);
-        }
-        finally
-        {
-            _commitGate.Release();
-        }
-    }
-
-    async ValueTask CommitRangeAsync(ReadOnlyMemory<byte> start, ReadOnlyMemory<byte> end, CancellationToken ct)
-    {
-        await CommitSingleAsync(Mutation.DeleteRange(start, end), ct);
+        await _txnManager.CommitMutationsAsync(mutations, ct).ConfigureAwait(false);
     }
 
     async ValueTask<bool> CommitSingleAsync(Mutation m, CancellationToken ct)
     {
-        await _commitGate.WaitAsync(ct);
+        await _commitGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             var txnId = (ulong)Interlocked.Increment(ref _nextTxnId);
@@ -866,7 +672,7 @@ public class DbEngine : IDbEngine
             act?.SetTag("key.len", m.Key.Length);
 
             Log.SingleCommitStarting(_logger, txnId, m.Op, m.Key.Length);
-            await _walWriter.BeginTransactionAsync(txnId, ct);
+            await _walWriter.BeginTransactionAsync(txnId, ct).ConfigureAwait(false);
             var existed = false;
             var seq = NextSeq(ref _seq);
             switch (m.Op)
@@ -874,26 +680,26 @@ public class DbEngine : IDbEngine
                 case MutationOp.Insert:
                     if (_memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out _))
                         throw new GravelInvalidOperationException("Insert failed: key exists (memtable)");
-                    if (await KeyExistsInSstAsync(m.Key, ct))
+                    if (await KeyExistsInSstAsync(m.Key, ct).ConfigureAwait(false))
                         throw new GravelInvalidOperationException("Insert failed: key exists (sst)");
-                    await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct);
+                    await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct).ConfigureAwait(false);
                     break;
                 case MutationOp.Put:
-                    await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct);
+                    await _walWriter.AppendAsync(txnId, DbEntry.Put(m.Key, m.Value, seq), ct).ConfigureAwait(false);
                     break;
                 case MutationOp.Delete:
                     existed = _memTableManager.GetMemTable().TryGet(m.Key.Span, out _, out _, out var knd) && knd == DbEntryKind.Put;
-                    await _walWriter.AppendAsync(txnId, DbEntry.DeleteKey(m.Key, seq), ct);
+                    await _walWriter.AppendAsync(txnId, DbEntry.DeleteKey(m.Key, seq), ct).ConfigureAwait(false);
                     break;
                 case MutationOp.DeleteRange:
-                    await _walWriter.AppendAsync(txnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct);
+                    await _walWriter.AppendAsync(txnId, DbEntry.DeleteRange(m.Key, m.RangeEnd, seq), ct).ConfigureAwait(false);
                     break;
                 default:
                     throw new GravelInvalidOperationException("Unknown mutation op");
             }
 
-            await _walWriter.CommitTransactionAsync(txnId, ct);
-            if (_options.WalSyncOnCommit) await _walWriter.FlushAsync(ct);
+            await _walWriter.CommitTransactionAsync(txnId, ct).ConfigureAwait(false);
+            if (_options.WalSyncOnCommit) await _walWriter.FlushAsync(ct).ConfigureAwait(false);
             switch (m.Op)
             {
                 case MutationOp.Put:
@@ -906,7 +712,7 @@ public class DbEngine : IDbEngine
 
             TelemetrySources.Commits.Add(1);
             Log.SingleCommitCommitted(_logger, txnId, m.Op, seq);
-            await MaybeFlushAsync(ct);
+            await MaybeFlushAsync(ct).ConfigureAwait(false);
             return existed;
         }
         finally
@@ -914,5 +720,4 @@ public class DbEngine : IDbEngine
             _commitGate.Release();
         }
     }
-
 }
