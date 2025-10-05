@@ -178,9 +178,24 @@ public abstract class EngineTestsBase
             }
         }, cts.Token)).ToArray();
 
-        await Task.WhenAny(writer, Task.Delay(1500, cts.Token));
+        // Wait up to 1.5s for the writer to complete; don't tie the delay to the same CTS to avoid it throwing
+        await Task.WhenAny(writer, Task.Delay(1500));
+
+        // Cancel the operations and wait for tasks to observe cancellation. It's possible some tasks
+        // will throw due to cancellation; swallow expected cancellation exceptions.
         await cts.CancelAsync();
-        await Task.WhenAll(readers.Append(writer));
+        try
+        {
+            await Task.WhenAll(readers.Append(writer));
+        }
+        catch (OperationCanceledException)
+        {
+            // expected when the CTS cancels the running tasks
+        }
+        catch (AggregateException ae) when (ae.InnerExceptions.All(e => e is OperationCanceledException))
+        {
+            // all tasks were canceled - expected
+        }
     }
 
 
