@@ -19,8 +19,8 @@ public class BackupRestoreTests
 
         // Create an engine backed by the filesystem and put some data
         var eng = await GravelFactory.CreateFileSystemAsync(src.Path);
-        await eng.PutAsync(Encoding.UTF8.GetBytes("k1"), Encoding.UTF8.GetBytes("v1"));
-        await eng.PutAsync(Encoding.UTF8.GetBytes("k2"), Encoding.UTF8.GetBytes("v2"));
+        await eng.PutAsync("k1"u8.ToArray(), "v1"u8.ToArray());
+        await eng.PutAsync("k2"u8.ToArray(), "v2"u8.ToArray());
 
         // Act: create backup archive and dispose engine
         await eng.BackupAsync(archive, new BackupOptions { IncludeWalSegments = false });
@@ -35,8 +35,8 @@ public class BackupRestoreTests
 
         // Open a new engine against the restored directory and verify data
         var restored = await GravelFactory.CreateFileSystemAsync(dst.Path);
-        var g1 = await restored.GetAsync(Encoding.UTF8.GetBytes("k1"));
-        var g2 = await restored.GetAsync(Encoding.UTF8.GetBytes("k2"));
+        var g1 = await restored.GetAsync("k1"u8.ToArray());
+        var g2 = await restored.GetAsync("k2"u8.ToArray());
 
         // Assert
         g1.HasValue.Should().BeTrue();

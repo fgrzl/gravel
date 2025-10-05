@@ -26,7 +26,7 @@ public class StorageBlockBuildersBenchmarks
         for (var i = 0; i < N; i++)
         {
             // create keys with a moderate shared prefix to exercise prefix compression
-            var prefix = Encoding.UTF8.GetBytes("prefix-");
+            var prefix = "prefix-"u8.ToArray();
             var suffix = Encoding.UTF8.GetBytes(i.ToString("D6"));
             var key = new byte[prefix.Length + suffix.Length + Math.Max(0, KeyLen - prefix.Length - suffix.Length)];
             prefix.CopyTo(key, 0);
