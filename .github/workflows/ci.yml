@@ -44,6 +44,9 @@ jobs:
 
   cleanup:
      runs-on: ubuntu-latest
+     concurrency:
+        group: cleanup-${{ github.repository }}
+        cancel-in-progress: false   
 
      steps:
        - name: Checkout
@@ -52,4 +55,4 @@ jobs:
        - name: Workflow Cleanup
          uses: fgrzl/actions/workflow-cleanup@v0.0.5
          with:
-            days_old: 2
+            days_old: 1
