@@ -6,7 +6,7 @@ A full-featured, production-oriented Log-Structured Merge (LSM) tree key-value s
 
 ## 💡 Overview
 
-Gravel implements the full LSM stack: WAL, memtable, SSTable format (blocks, indexes, filters), compaction, and runtime helpers (pools, spans, async I/O). It targets .NET 8 and uses modern C# features (`Span<T>`, `Memory<T>`, `ArrayPool<T>`) to minimize allocations and maximize throughput.
+Gravel implements the full LSM stack: WAL, memtable, SSTable format (blocks, indexes, filters), compaction, and runtime helpers (pools, spans, async I/O). It targets modern C# features (`Span<T>`, `Memory<T>`, `ArrayPool<T>`) to minimize allocations and maximize throughput.
 
 Key goals:
 - ✅ Production-ready semantics and on-disk formats
