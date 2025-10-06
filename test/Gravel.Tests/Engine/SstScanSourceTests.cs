@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.TestHelpers;
 using Xunit;
@@ -28,7 +27,7 @@ public class SstScanSourceTests
         var src = await SstScanSource.CreateAsync(rdr, 5, null, null);
 
         // Assert
-        src.Precedence.Should().Be(5);
+        Assert.Equal(5, src.Precedence);
         var seen = new List<(string K, string V)>();
         while (src.HasItem)
         {
@@ -36,8 +35,8 @@ public class SstScanSourceTests
             src.MoveNext();
         }
 
-        seen.Select(x => x.K).Should().Equal("a", "b", "c");
-        seen.Select(x => x.V).Should().Equal("1", "2", "3");
+        Assert.Equal(new[] { "a", "b", "c" }, seen.Select(x => x.K).ToArray());
+        Assert.Equal(new[] { "1", "2", "3" }, seen.Select(x => x.V).ToArray());
     }
 
     [Fact]
@@ -57,7 +56,7 @@ public class SstScanSourceTests
         }
 
         // Assert
-        keys.Should().Equal("b", "c");
+        Assert.Equal(new[] { "b", "c" }, keys);
     }
 
     [Fact]
@@ -71,8 +70,8 @@ public class SstScanSourceTests
         var src = await SstScanSource.CreateAsync(rdr, 0, B("z"), null);
 
         // Assert
-        src.HasItem.Should().BeFalse();
-        src.MoveNext().Should().BeFalse();
+        Assert.False(src.HasItem);
+        Assert.False(src.MoveNext());
     }
 
     [Fact]
@@ -104,7 +103,9 @@ public class SstScanSourceTests
         }
 
         // We expect to have seen at least a, b, c, e in ascending order
-        listed.Select(x => x.Key).Should().BeInAscendingOrder();
-        keys.IsSupersetOf(["a", "b", "c", "e"]).Should().BeTrue();
+        var keySeq = listed.Select(x => x.Key).ToArray();
+        var ordered = keySeq.OrderBy(x => x).ToArray();
+        Assert.True(keySeq.SequenceEqual(ordered));
+        Assert.True(keys.IsSupersetOf(new[] { "a", "b", "c", "e" }));
     }
 }

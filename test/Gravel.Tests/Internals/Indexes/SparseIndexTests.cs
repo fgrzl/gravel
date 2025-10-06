@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Text;
-using FluentAssertions;
 using Xunit;
 
 namespace Gravel.Internals.Indexes;
@@ -27,9 +26,9 @@ public class SparseIndexTests
         // Assert
         var ks = idx.Entries.Select(e => Encoding.UTF8.GetString(e.Key)).ToArray();
         var offs = idx.Entries.Select(e => e.Offset).ToArray();
-        ks.Should().Equal("a", "b", "d");
-        offs.Should().Equal(10, 20, 40);
-        idx.Count.Should().Be(3);
+        Assert.Equal(new[] { "a", "b", "d" }, ks);
+        Assert.Equal(new[] { 10L, 20L, 40L }, offs);
+        Assert.Equal(3, idx.Count);
     }
 
     [Fact]
@@ -43,7 +42,7 @@ public class SparseIndexTests
         var act = () => idx.AddSample(B("a"), 2);
 
         // Assert
-        act.Should().Throw<InvalidOperationException>();
+        Assert.Throws<InvalidOperationException>(act);
     }
 
     [Fact]
@@ -59,7 +58,7 @@ public class SparseIndexTests
         var off = idx.FindFloor(B("bb"));
 
         // Assert
-        off.Should().Be(200);
+        Assert.Equal(200, off);
     }
 
     [Fact]
@@ -75,7 +74,7 @@ public class SparseIndexTests
         var off = idx.FindFloor(B("k4"));
 
         // Assert
-        off.Should().Be(33);
+        Assert.Equal(33, off);
     }
 
     [Fact]
@@ -89,7 +88,7 @@ public class SparseIndexTests
         var off = idx.FindFloor(B("a"));
 
         // Assert
-        off.Should().Be(0);
+        Assert.Equal(0, off);
     }
 
     [Fact]
@@ -104,7 +103,7 @@ public class SparseIndexTests
         var off = idx.FindFloor(B("zz"));
 
         // Assert
-        off.Should().Be(2);
+        Assert.Equal(2, off);
     }
 
     [Fact]
@@ -117,6 +116,6 @@ public class SparseIndexTests
         var off = idx.FindFloor(B("any"));
 
         // Assert
-        off.Should().Be(0);
+        Assert.Equal(0, off);
     }
 }

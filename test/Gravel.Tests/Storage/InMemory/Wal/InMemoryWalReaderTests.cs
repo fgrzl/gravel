@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Wal;
 using Microsoft.Extensions.Options;
@@ -35,9 +34,13 @@ public class InMemoryWalReaderTests
         await foreach (var rec in r.ReplayAsync()) list.Add(rec);
 
         // Assert
-        list.Select(x => x.Type).Should()
-            .ContainInOrder(WalConstants.RecordBeginTxn, WalConstants.RecordEntry, WalConstants.RecordEntry,
-                WalConstants.RecordCommitTxn);
+        var types = list.Select(x => x.Type).ToArray();
+        Assert.Equal(
+            new[]
+            {
+                WalConstants.RecordBeginTxn, WalConstants.RecordEntry, WalConstants.RecordEntry,
+                WalConstants.RecordCommitTxn
+            }, types);
     }
 
     [Fact]
@@ -59,6 +62,6 @@ public class InMemoryWalReaderTests
         await foreach (var _ in r.ReplayAsync()) count++;
 
         // Assert
-        count.Should().BeLessThanOrEqualTo(5);
+        Assert.True(count <= 5);
     }
 }

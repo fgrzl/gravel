@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Wal;
 using Gravel.TestHelpers;
@@ -57,7 +56,7 @@ public class FileWalWriterTests : IAsyncLifetime
             await w.CommitTransactionAsync(42);
 
             // Assert (in-memory state)
-            w.LastSequence.Should().Be(1ul);
+            Assert.Equal(1ul, w.LastSequence);
         }
 
         // Assert (on-disk replay)
@@ -65,20 +64,20 @@ public class FileWalWriterTests : IAsyncLifetime
         var records = new List<WalRecord>();
         await foreach (var r in reader.ReplayAsync()) records.Add(r);
 
-        records.Should().HaveCount(3);
+        Assert.Equal(3, records.Count);
 
-        records[0].Type.Should().Be(WalConstants.RecordBeginTxn);
-        records[0].TxnId.Should().Be(42ul);
+        Assert.Equal(WalConstants.RecordBeginTxn, records[0].Type);
+        Assert.Equal(42ul, records[0].TxnId);
 
-        records[1].Type.Should().Be(WalConstants.RecordEntry);
-        records[1].TxnId.Should().Be(42ul);
-        records[1].Entry.Should().NotBeNull();
-        records[1].Entry?.Sequence.Should().Be(1ul);
-        Encoding.UTF8.GetString(records[1].Entry?.Key.ToArray() ?? []).Should().Be("key1");
-        Encoding.UTF8.GetString(records[1].Entry?.Value.ToArray() ?? []).Should().Be("value1");
+        Assert.Equal(WalConstants.RecordEntry, records[1].Type);
+        Assert.Equal(42ul, records[1].TxnId);
+        Assert.NotNull(records[1].Entry);
+        Assert.Equal(1ul, records[1].Entry?.Sequence);
+        Assert.Equal("key1", Encoding.UTF8.GetString(records[1].Entry?.Key.ToArray() ?? []));
+        Assert.Equal("value1", Encoding.UTF8.GetString(records[1].Entry?.Value.ToArray() ?? []));
 
-        records[2].Type.Should().Be(WalConstants.RecordCommitTxn);
-        records[2].TxnId.Should().Be(42ul);
+        Assert.Equal(WalConstants.RecordCommitTxn, records[2].Type);
+        Assert.Equal(42ul, records[2].TxnId);
     }
 
     [Fact]
@@ -98,7 +97,7 @@ public class FileWalWriterTests : IAsyncLifetime
             await w.CommitTransactionAsync(100);
 
             // Assert (in-memory)
-            w.LastSequence.Should().Be(2ul);
+            Assert.Equal(2ul, w.LastSequence);
         }
 
         // Assert (replay)
@@ -106,19 +105,19 @@ public class FileWalWriterTests : IAsyncLifetime
         var records = new List<WalRecord>();
         await foreach (var r in reader.ReplayAsync()) records.Add(r);
 
-        records.Should().HaveCount(4);
+        Assert.Equal(4, records.Count);
 
-        records[1].Type.Should().Be(WalConstants.RecordEntry);
-        records[1].TxnId.Should().Be(100ul);
-        records[1].Entry.Should().NotBeNull();
+        Assert.Equal(WalConstants.RecordEntry, records[1].Type);
+        Assert.Equal(100ul, records[1].TxnId);
+        Assert.NotNull(records[1].Entry);
         var dbEntry = records[1].Entry!.Value;
-        dbEntry.Key.ToArray().Should().BeEquivalentTo(B("dkey"));
-        records[1].Entry?.Value.ToArray().Should().BeEmpty();
+        Assert.Equal(B("dkey"), dbEntry.Key.ToArray());
+        Assert.Empty(records[1].Entry?.Value.ToArray());
 
-        records[2].Type.Should().Be(WalConstants.RecordEntry);
-        records[2].Entry.Should().NotBeNull();
-        records[2].Entry!.Value.Key.ToArray().Should().BeEquivalentTo(B("rstart"));
-        records[2].Entry?.Value.ToArray().Should().BeEquivalentTo(B("rend"));
+        Assert.Equal(WalConstants.RecordEntry, records[2].Type);
+        Assert.NotNull(records[2].Entry);
+        Assert.Equal(B("rstart"), records[2].Entry!.Value.Key.ToArray());
+        Assert.Equal(B("rend"), records[2].Entry?.Value.ToArray());
     }
 
     [Fact]
@@ -136,24 +135,26 @@ public class FileWalWriterTests : IAsyncLifetime
             }
 
             // Assert (in-memory)
-            w.LastSequence.Should().Be(5ul);
+            Assert.Equal(5ul, w.LastSequence);
         }
 
         // Assert (files and replay)
         var files = Directory.GetFiles(_dir, "*.wal").OrderBy(f => f).ToList();
-        files.Count.Should().BeGreaterThan(1);
+        Assert.True(files.Count > 1);
 
         await using var reader = new FileWalReader(_dir);
         var records = new List<WalRecord>();
         await foreach (var r in reader.ReplayAsync()) records.Add(r);
 
-        records.Count.Should().Be(5 * 3);
+        Assert.Equal(5 * 3, records.Count);
 
         var entrySeqs = records.Where(r => r.Type == WalConstants.RecordEntry).Select(r => r.Entry!.Value.Sequence)
             .ToList();
-        entrySeqs.Should().BeInAscendingOrder();
-        entrySeqs.Should().HaveCount(5);
-        entrySeqs.Distinct().Count().Should().Be(5);
+        var seqs = entrySeqs.ToArray();
+        var sorted = seqs.OrderBy(x => x).ToArray();
+        Assert.True(seqs.SequenceEqual(sorted));
+        Assert.Equal(5, entrySeqs.Count);
+        Assert.Equal(5, entrySeqs.Distinct().Count());
     }
 
     [Fact]
@@ -170,7 +171,7 @@ public class FileWalWriterTests : IAsyncLifetime
             await w.CommitTransactionAsync(7);
 
             // Assert (in-memory)
-            w.LastSequence.Should().Be(1ul);
+            Assert.Equal(1ul, w.LastSequence);
         }
 
         // Assert (replay)
@@ -178,11 +179,11 @@ public class FileWalWriterTests : IAsyncLifetime
         var records = new List<WalRecord>();
         await foreach (var r in reader.ReplayAsync()) records.Add(r);
 
-        records.Should().HaveCount(3);
+        Assert.Equal(3, records.Count);
         var e = records.Single(r => r.Type == WalConstants.RecordEntry);
-        e.Entry.Should().NotBeNull();
-        e.Entry!.Value.Key.ToArray().Should().BeEmpty();
-        e.Entry.Value.Value.ToArray().Should().BeEmpty();
+        Assert.NotNull(e.Entry);
+        Assert.Empty(e.Entry!.Value.Key.ToArray());
+        Assert.Empty(e.Entry.Value.Value.ToArray());
     }
 
     [Fact]
@@ -199,7 +200,7 @@ public class FileWalWriterTests : IAsyncLifetime
             await w.RollbackTransactionAsync(9);
 
             // Assert (in-memory)
-            w.LastSequence.Should().Be(1ul);
+            Assert.Equal(1ul, w.LastSequence);
         }
 
         // Assert (replay)
@@ -208,8 +209,8 @@ public class FileWalWriterTests : IAsyncLifetime
         await foreach (var r in reader.ReplayAsync()) records.Add(r);
 
         // Expect begin, entry, rollback
-        records.Should().HaveCount(3);
-        records[2].Type.Should().Be(WalConstants.RecordRollbackTxn);
-        records[2].TxnId.Should().Be(9ul);
+        Assert.Equal(3, records.Count);
+        Assert.Equal(WalConstants.RecordRollbackTxn, records[2].Type);
+        Assert.Equal(9ul, records[2].TxnId);
     }
 }

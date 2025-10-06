@@ -1,7 +1,6 @@
 using System;
 using System.Text;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Wal;
 using Gravel.Internals.Compaction;
@@ -41,16 +40,19 @@ public class EngineMixedTombstoneTests
         // Arrange
         var factory = new TestSstFactory();
         // L2 newer delete-key at same seq as put (tie -> delete-key wins), and newer range masking older put
-        factory.Register("/y/sst", 2, "0002.sst", [
+        factory.Register("/y/sst", 2, "0002.sst", new[]
+        {
             DbEntry.DeleteKey(B("b"), 50UL),
             DbEntry.DeleteRange(B("x"), B("z"), 60UL)
-        ]);
-        factory.Register("/y/sst", 1, "0001.sst", [
+        });
+        factory.Register("/y/sst", 1, "0001.sst", new[]
+        {
             DbEntry.Put(B("b"), B("vb"), 50UL) // same seq as delete-key
-        ]);
-        factory.Register("/y/sst", 0, "0000.sst", [
+        });
+        factory.Register("/y/sst", 0, "0000.sst", new[]
+        {
             DbEntry.Put(B("y"), B("vy"), 10UL)
-        ]);
+        });
 
         var eng = CreateEngineWithFactory(factory);
         await eng.InitializeAsync();
@@ -60,7 +62,7 @@ public class EngineMixedTombstoneTests
         var gy = await eng.GetAsync(B("y"));
 
         // Assert
-        gb.Should().BeNull(); // delete-key at same seq as put masks it
-        gy.Should().BeNull(); // newer range at [x,z) masks older put of y
+        Assert.Null(gb); // delete-key at same seq as put masks it
+        Assert.Null(gy); // newer range at [x,z) masks older put of y
     }
 }

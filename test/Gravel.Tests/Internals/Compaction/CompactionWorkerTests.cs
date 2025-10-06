@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Xunit;
 
 namespace Gravel.Internals.Compaction;
@@ -28,9 +27,9 @@ public class CompactionWorkerTests
         var completed = await task.Completion.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         // Assert
-        completed.Should().BeTrue();
+        Assert.True(completed);
         var output = task.GetOutputBytes();
-        Encoding.UTF8.GetString(output).Should().Be("hello world!");
+        Assert.Equal("hello world!", Encoding.UTF8.GetString(output));
     }
 
     [Fact]
@@ -49,11 +48,11 @@ public class CompactionWorkerTests
         var completed = await task.Completion.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         // Assert
-        completed.Should().BeTrue();
-        reports.Should().NotBeEmpty();
+        Assert.True(completed);
+        Assert.NotEmpty(reports);
         var final = reports[^1];
-        final.TaskId.Should().Be("t2");
-        final.BytesWritten.Should().Be(task.TotalBytesExpected);
+        Assert.Equal("t2", final.TaskId);
+        Assert.Equal(task.TotalBytesExpected, final.BytesWritten);
     }
 
     [Fact]
@@ -63,13 +62,13 @@ public class CompactionWorkerTests
         var limiter = new TokenBucketLimiter(10, 10);
 
         // Act & Assert
-        limiter.TryConsume(10).Should().BeTrue(); // burst allows immediate 10 bytes
-        limiter.TryConsume(1).Should().BeFalse(); // no tokens remain
+        Assert.True(limiter.TryConsume(10)); // burst allows immediate 10 bytes
+        Assert.False(limiter.TryConsume(1)); // no tokens remain
 
         // Act
         limiter.UpdateRate(1000, 1000);
 
         // Assert
-        limiter.TryConsume(1).Should().BeTrue();
+        Assert.True(limiter.TryConsume(1));
     }
 }

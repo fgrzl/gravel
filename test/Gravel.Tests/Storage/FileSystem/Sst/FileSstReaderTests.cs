@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Compression;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -80,9 +79,9 @@ public class FileSstReaderTests : IAsyncLifetime
         foreach (var (k, v) in items)
         {
             var got = await r.GetAsync(B(k));
-            got.Should().NotBeNull();
-            Encoding.UTF8.GetString(got!.Value.Key.ToArray()).Should().Be(k);
-            Encoding.UTF8.GetString(got.Value.Value.ToArray()).Should().Be(v);
+            Assert.NotNull(got);
+            Assert.Equal(k, Encoding.UTF8.GetString(got!.Value.Key.ToArray()));
+            Assert.Equal(v, Encoding.UTF8.GetString(got.Value.Value.ToArray()));
         }
     }
 
@@ -99,12 +98,12 @@ public class FileSstReaderTests : IAsyncLifetime
         var got = await r.GetAsync(B(target));
 
         // Assert
-        got.Should().NotBeNull();
-        Encoding.UTF8.GetString(got!.Value.Key.ToArray()).Should().Be(target);
-        Encoding.UTF8.GetString(got.Value.Value.ToArray()).Should().Be("v027");
+        Assert.NotNull(got);
+        Assert.Equal(target, Encoding.UTF8.GetString(got!.Value.Key.ToArray()));
+        Assert.Equal("v027", Encoding.UTF8.GetString(got.Value.Value.ToArray()));
 
         var missing = await r.GetAsync(B("z999"));
-        missing.Should().BeNull();
+        Assert.Null(missing);
     }
 
     [Fact]
@@ -118,7 +117,7 @@ public class FileSstReaderTests : IAsyncLifetime
         using var r = new FileSstReader(path, new CompressorFactory(), NullLogger<FileSstReader>.Instance);
 
         // Assert
-        (await r.MightContainAsync(B("alpha"))).Should().BeTrue();
+        Assert.True(await r.MightContainAsync(B("alpha")));
         var missingMaybe = await r.MightContainAsync(B("missing-key"));
         _ = missingMaybe; // acceptable both ways
     }
@@ -134,9 +133,9 @@ public class FileSstReaderTests : IAsyncLifetime
         var got = await r.GetAsync(B(""));
 
         // Assert
-        got.Should().NotBeNull();
-        got!.Value.Key.ToArray().Should().BeEmpty();
-        got.Value.Value.ToArray().Should().BeEmpty();
+        Assert.NotNull(got);
+        Assert.Empty(got!.Value.Key.ToArray());
+        Assert.Empty(got.Value.Value.ToArray());
     }
 
     [Fact]
@@ -153,7 +152,7 @@ public class FileSstReaderTests : IAsyncLifetime
 
         // Assert
         var act = () => { _ = new FileSstReader(path, new CompressorFactory(), NullLogger<FileSstReader>.Instance); };
-        act.Should().Throw<InvalidDataException>();
+        Assert.Throws<InvalidDataException>(act);
     }
 
     [Fact]
@@ -168,7 +167,7 @@ public class FileSstReaderTests : IAsyncLifetime
         var e = await r.GetAsync(B("big"));
 
         // Assert
-        e.Should().NotBeNull();
-        Encoding.UTF8.GetString(e!.Value.Value.ToArray()).Should().Be(big);
+        Assert.NotNull(e);
+        Assert.Equal(big, Encoding.UTF8.GetString(e!.Value.Value.ToArray()));
     }
 }

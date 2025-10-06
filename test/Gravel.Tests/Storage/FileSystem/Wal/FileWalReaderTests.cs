@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Wal;
 using Gravel.TestHelpers;
@@ -63,20 +62,20 @@ public class FileWalReaderTests : IAsyncLifetime
         var records = new List<WalRecord>();
         await foreach (var r in reader.ReplayAsync()) records.Add(r);
 
-        records.Should().HaveCount(3);
-        records[0].Type.Should().Be(WalConstants.RecordBeginTxn);
-        records[0].TxnId.Should().Be(42ul);
+        Assert.Equal(3, records.Count);
+        Assert.Equal(WalConstants.RecordBeginTxn, records[0].Type);
+        Assert.Equal(42ul, records[0].TxnId);
 
-        records[1].Type.Should().Be(WalConstants.RecordEntry);
-        records[1].TxnId.Should().Be(42ul);
-        records[1].Entry.Should().NotBeNull();
+        Assert.Equal(WalConstants.RecordEntry, records[1].Type);
+        Assert.Equal(42ul, records[1].TxnId);
+        Assert.NotNull(records[1].Entry);
         var dbEntry = records[1].Entry!.Value;
-        dbEntry.Sequence.Should().Be(1ul);
-        Encoding.UTF8.GetString(dbEntry.Key.ToArray()).Should().Be("key1");
-        Encoding.UTF8.GetString(dbEntry.Value.ToArray()).Should().Be("value1");
+        Assert.Equal(1ul, dbEntry.Sequence);
+        Assert.Equal("key1", Encoding.UTF8.GetString(dbEntry.Key.ToArray()));
+        Assert.Equal("value1", Encoding.UTF8.GetString(dbEntry.Value.ToArray()));
 
-        records[2].Type.Should().Be(WalConstants.RecordCommitTxn);
-        records[2].TxnId.Should().Be(42ul);
+        Assert.Equal(WalConstants.RecordCommitTxn, records[2].Type);
+        Assert.Equal(42ul, records[2].TxnId);
     }
 
     [Fact]
@@ -103,22 +102,22 @@ public class FileWalReaderTests : IAsyncLifetime
         var records = new List<WalRecord>();
         await foreach (var r in reader.ReplayAsync()) records.Add(r);
 
-        records.Should().HaveCount(4);
+        Assert.Equal(4, records.Count);
 
         var entry1 = records[1];
-        entry1.Type.Should().Be(WalConstants.RecordEntry);
-        entry1.TxnId.Should().Be(100ul);
-        entry1.Entry.Should().NotBeNull();
+        Assert.Equal(WalConstants.RecordEntry, entry1.Type);
+        Assert.Equal(100ul, entry1.TxnId);
+        Assert.NotNull(entry1.Entry);
         var db1 = entry1.Entry!.Value;
-        db1.Key.ToArray().Should().BeEquivalentTo(B("dkey"));
-        db1.Value.ToArray().Should().BeEmpty();
+        Assert.Equal(B("dkey"), db1.Key.ToArray());
+        Assert.Empty(db1.Value.ToArray());
 
         var entry2 = records[2];
-        entry2.Type.Should().Be(WalConstants.RecordEntry);
-        entry2.Entry.Should().NotBeNull();
+        Assert.Equal(WalConstants.RecordEntry, entry2.Type);
+        Assert.NotNull(entry2.Entry);
         var db2 = entry2.Entry!.Value;
-        db2.Key.ToArray().Should().BeEquivalentTo(B("rstart"));
-        db2.Value.ToArray().Should().BeEquivalentTo(B("rend"));
+        Assert.Equal(B("rstart"), db2.Key.ToArray());
+        Assert.Equal(B("rend"), db2.Value.ToArray());
     }
 
     [Fact]
@@ -140,19 +139,20 @@ public class FileWalReaderTests : IAsyncLifetime
 
         // Assert
         var files = Directory.GetFiles(_dir, "*.wal").OrderBy(f => f).ToList();
-        files.Count.Should().BeGreaterThan(1);
+        Assert.True(files.Count > 1);
 
         await using var reader = new FileWalReader(_dir);
         var records = new List<WalRecord>();
         await foreach (var r in reader.ReplayAsync()) records.Add(r);
 
-        records.Count.Should().Be(8 * 3);
+        Assert.Equal(8 * 3, records.Count);
 
         var entrySeqs = records.Where(r => r.Type == WalConstants.RecordEntry).Select(r => r.Entry!.Value.Sequence)
             .ToList();
-        entrySeqs.Should().BeInAscendingOrder();
-        entrySeqs.Should().HaveCount(8);
-        entrySeqs.Distinct().Count().Should().Be(8);
+        // check ascending
+        for (var i = 1; i < entrySeqs.Count; i++) Assert.True(entrySeqs[i] >= entrySeqs[i - 1]);
+        Assert.Equal(8, entrySeqs.Count);
+        Assert.Equal(8, entrySeqs.Distinct().Count());
     }
 
     [Fact]
@@ -176,12 +176,12 @@ public class FileWalReaderTests : IAsyncLifetime
         var records = new List<WalRecord>();
         await foreach (var r in reader.ReplayAsync()) records.Add(r);
 
-        records.Should().HaveCount(3);
+        Assert.Equal(3, records.Count);
         var e = records.Single(r => r.Type == WalConstants.RecordEntry);
-        e.Entry.Should().NotBeNull();
+        Assert.NotNull(e.Entry);
         var db = e.Entry!.Value;
-        db.Key.ToArray().Should().BeEmpty();
-        db.Value.ToArray().Should().BeEmpty();
+        Assert.Empty(db.Key.ToArray());
+        Assert.Empty(db.Value.ToArray());
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class FileWalReaderTests : IAsyncLifetime
 
         // Act: write a second corrupt segment file
         var corruptPath = Path.Combine(_dir, $"{2ul:D20}.wal");
-        await File.WriteAllBytesAsync(corruptPath, [0xFF]); // unknown record type
+        await File.WriteAllBytesAsync(corruptPath, new byte[] { 0xFF }); // unknown record type
 
         // Assert
         await using var reader = new FileWalReader(_dir);
@@ -206,11 +206,10 @@ public class FileWalReaderTests : IAsyncLifetime
         await foreach (var r in reader.ReplayAsync()) records.Add(r);
 
         // reader should return records from first segment only and stop when hitting corrupt second
-        records.Should().NotBeEmpty();
-        records.All(r => r.TxnId == 1ul || r.Entry is not null && r.Entry.Value.Sequence == 1ul).Should()
-            .BeTrue();
+        Assert.NotEmpty(records);
+        Assert.All(records, r => Assert.True(r.TxnId == 1ul || r.Entry is not null && r.Entry.Value.Sequence == 1ul));
 
         // ensure it did not include any records from a hypothetical second segment
-        records.Select(r => r.TxnId).Distinct().Should().ContainSingle(x => x == 1ul);
+        Assert.Single(records.Select(r => r.TxnId).Distinct().Where(x => x == 1ul));
     }
 }

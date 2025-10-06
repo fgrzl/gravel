@@ -48,7 +48,6 @@ Serialization format (existing `BloomFilter`)
 - Test names now follow should_x_given_y_when_z.
 - Each test uses explicit // Arrange, // Act, and // Assert sections.
 - Unit tests should only test one logical behavior per test.
-- Use `FluentAssertions` for assertions in tests.
 - if a test has an empty catch block, add a comment explaining why it's empty
 
 Commit / PR guidelines

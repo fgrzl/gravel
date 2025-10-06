@@ -1,7 +1,6 @@
 using System;
 using System.Reflection;
 using System.Threading;
-using FluentAssertions;
 using Xunit;
 
 namespace Gravel.Internals;
@@ -21,7 +20,7 @@ public class TimestampTests
         var ex = Timestamp.GetInitializationError();
 
         // Assert
-        ex.Should().BeNull();
+        Assert.Null(ex);
     }
 
     [Fact]
@@ -38,7 +37,7 @@ public class TimestampTests
             var server = Timestamp.GetTimeServer();
 
             // Assert
-            server.Should().Be("custom.server");
+            Assert.Equal("custom.server", server);
         }
         finally
         {
@@ -55,7 +54,7 @@ public class TimestampTests
         var server = Timestamp.GetTimeServer();
 
         // Assert
-        server.Should().NotBeNull();
+        Assert.NotNull(server);
     }
 
     [Fact]
@@ -69,7 +68,7 @@ public class TimestampTests
         var t2 = Timestamp.GetTimestamp();
 
         // Assert
-        t2.Should().BeGreaterThanOrEqualTo(t1);
+        Assert.True(t2 >= t1);
     }
 
     [Fact]
@@ -82,7 +81,7 @@ public class TimestampTests
 
         // Assert: sanity vs current UTC time (allow generous skew to avoid flakiness)
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        Math.Abs(t - now).Should().BeLessThan(10_000); // within 10s
+        Assert.True(Math.Abs(t - now) < 10_000); // within 10s
     }
 
     [Fact]
@@ -95,14 +94,14 @@ public class TimestampTests
         {
             Environment.SetEnvironmentVariable(envVar, "system");
             var mi = typeof(Timestamp).GetMethod("GetCurrentTime", BindingFlags.NonPublic | BindingFlags.Static);
-            mi.Should().NotBeNull("private method must exist");
+            Assert.NotNull(mi);
 
             // Act
             var result = (DateTime)mi!.Invoke(null, [])!;
 
             // Assert
             var delta = Math.Abs((result - DateTime.UtcNow).TotalSeconds);
-            delta.Should().BeLessThan(2); // within 2 seconds
+            Assert.True(delta < 2); // within 2 seconds
         }
         finally
         {
@@ -115,7 +114,7 @@ public class TimestampTests
     {
         // Arrange
         var mi = typeof(Timestamp).GetMethod("TryGetNtpTime", BindingFlags.NonPublic | BindingFlags.Static);
-        mi.Should().NotBeNull();
+        Assert.NotNull(mi);
 
         var args = new object?[] { "invalid.invalid", default(DateTime) };
 
@@ -123,8 +122,8 @@ public class TimestampTests
         var ok = (bool)mi!.Invoke(null, args)!;
 
         // Assert
-        ok.Should().BeFalse();
-        ((DateTime)args[1]!).Should().Be(default);
+        Assert.False(ok);
+        Assert.Equal(default, (DateTime)args[1]!);
     }
 
     [Fact]
@@ -138,14 +137,14 @@ public class TimestampTests
             // Set to a hostname that should not resolve
             Environment.SetEnvironmentVariable(envVar, "invalid.invalid");
             var mi = typeof(Timestamp).GetMethod("GetCurrentTime", BindingFlags.NonPublic | BindingFlags.Static);
-            mi.Should().NotBeNull();
+            Assert.NotNull(mi);
 
             // Act
             var result = (DateTime)mi!.Invoke(null, [])!;
 
             // Assert
             var delta = Math.Abs((result - DateTime.UtcNow).TotalSeconds);
-            delta.Should().BeLessThan(2); // fell back to system clock
+            Assert.True(delta < 2); // fell back to system clock
         }
         finally
         {

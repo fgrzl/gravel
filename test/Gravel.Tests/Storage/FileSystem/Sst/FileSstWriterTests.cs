@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Compression;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -71,15 +70,15 @@ public class FileSstWriterTests : IAsyncLifetime
         }
 
         // Assert
-        File.Exists(path).Should().BeTrue();
+        Assert.True(File.Exists(path));
 
         using var r = new FileSstReader(path, new CompressorFactory(), NullLogger<FileSstReader>.Instance);
         foreach (var (k, v) in items)
         {
             var got = await r.GetAsync(B(k));
-            got.Should().NotBeNull();
-            Encoding.UTF8.GetString(got!.Value.Key.ToArray()).Should().Be(k);
-            Encoding.UTF8.GetString(got.Value.Value.ToArray()).Should().Be(v);
+            Assert.NotNull(got);
+            Assert.Equal(k, Encoding.UTF8.GetString(got!.Value.Key.ToArray()));
+            Assert.Equal(v, Encoding.UTF8.GetString(got.Value.Value.ToArray()));
         }
     }
 
@@ -105,14 +104,14 @@ public class FileSstWriterTests : IAsyncLifetime
         using var r = new FileSstReader(path, new CompressorFactory(), NullLogger<FileSstReader>.Instance);
 
         var got = await r.GetAsync(B("k2"));
-        got.Should().NotBeNull();
-        Encoding.UTF8.GetString(got!.Value.Key.ToArray()).Should().Be("k2");
-        Encoding.UTF8.GetString(got.Value.Value.ToArray()).Should().Be("v2");
+        Assert.NotNull(got);
+        Assert.Equal("k2", Encoding.UTF8.GetString(got!.Value.Key.ToArray()));
+        Assert.Equal("v2", Encoding.UTF8.GetString(got.Value.Value.ToArray()));
 
         var missing = await r.GetAsync(B("not-there"));
-        missing.Should().BeNull();
+        Assert.Null(missing);
 
-        (await r.MightContainAsync(B("k1"))).Should().BeTrue();
+        Assert.True(await r.MightContainAsync(B("k1")));
         // may be true/false for non-existing
         _ = await r.MightContainAsync(B("not-there"));
     }
@@ -132,9 +131,9 @@ public class FileSstWriterTests : IAsyncLifetime
         // Assert
         using var r = new FileSstReader(path, new CompressorFactory(), NullLogger<FileSstReader>.Instance);
         var got = await r.GetAsync(B(""));
-        got.Should().NotBeNull();
-        got!.Value.Key.ToArray().Should().BeEmpty();
-        got.Value.Value.ToArray().Should().BeEmpty();
+        Assert.NotNull(got);
+        Assert.Empty(got!.Value.Key.ToArray());
+        Assert.Empty(got.Value.Value.ToArray());
     }
 
     [Fact]
@@ -151,8 +150,8 @@ public class FileSstWriterTests : IAsyncLifetime
         }
 
         // Assert
-        File.Exists(path).Should().BeTrue();
-        Directory.GetFiles(_dir, "*.tmp.*").Should().BeEmpty();
+        Assert.True(File.Exists(path));
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp.*"));
     }
 
     [Fact]
@@ -171,6 +170,6 @@ public class FileSstWriterTests : IAsyncLifetime
         // Assert
         using var r = new FileSstReader(path, new CompressorFactory(), NullLogger<FileSstReader>.Instance);
         var e = (await r.GetAsync(B("big")))!;
-        Encoding.UTF8.GetString(e.Value.Value.ToArray()).Should().Be(big);
+        Assert.Equal(big, Encoding.UTF8.GetString(e.Value.Value.ToArray()));
     }
 }

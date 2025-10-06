@@ -3,7 +3,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Internals;
 using Xunit;
@@ -27,11 +26,11 @@ public class MemTableTests
         var found = mt.TryGet("nope"u8.ToArray().AsSpan(), out var v, out var s, out var k);
 
         // Assert
-        mt.Count.Should().Be(0);
-        found.Should().BeFalse();
-        v.HasValue.Should().BeFalse();
-        s.Should().Be(0UL);
-        k.Should().Be(0);
+        Assert.Equal(0, mt.Count);
+        Assert.False(found);
+        Assert.False(v.HasValue);
+        Assert.Equal(0UL, s);
+        Assert.Equal(default, k);
     }
 
     [Fact]
@@ -47,11 +46,11 @@ public class MemTableTests
         var ok = mt.TryGet(key.AsSpan(), out var got, out var seq, out var kind);
 
         // Assert
-        mt.Count.Should().Be(1);
-        ok.Should().BeTrue();
-        seq.Should().Be(1UL);
-        kind.Should().Be(DbEntryKind.Put);
-        got?.ToArray().Should().Equal(value);
+        Assert.Equal(1, mt.Count);
+        Assert.True(ok);
+        Assert.Equal(1UL, seq);
+        Assert.Equal(DbEntryKind.Put, kind);
+        Assert.Equal(value, got?.ToArray());
     }
 
     [Fact]
@@ -69,11 +68,11 @@ public class MemTableTests
         var ok = mt.TryGet(key.AsSpan(), out var got, out var seq, out var kind);
 
         // Assert
-        ok.Should().BeTrue();
-        seq.Should().Be(10UL);
-        kind.Should().Be(DbEntryKind.Put);
-        got?.ToArray().Should().Equal(v1);
-        mt.Count.Should().Be(1);
+        Assert.True(ok);
+        Assert.Equal(10UL, seq);
+        Assert.Equal(DbEntryKind.Put, kind);
+        Assert.Equal(v1, got?.ToArray());
+        Assert.Equal(1, mt.Count);
     }
 
     [Fact]
@@ -91,10 +90,10 @@ public class MemTableTests
         var got = mt.TryGet(key.AsSpan(), out var gotEq, out var seqEq, out var kindEq);
 
         // Assert
-        got.Should().BeTrue();
-        seqEq.Should().Be(1UL);
-        kindEq.Should().Be(DbEntryKind.Put);
-        gotEq?.ToArray().Should().Equal(v2);
+        Assert.True(got);
+        Assert.Equal(1UL, seqEq);
+        Assert.Equal(DbEntryKind.Put, kindEq);
+        Assert.Equal(v2, gotEq?.ToArray());
     }
 
     [Fact]
@@ -111,10 +110,10 @@ public class MemTableTests
         var ok = mt.TryGet(key.AsSpan(), out var gotHi, out var seqHi, out var kindHi);
 
         // Assert
-        ok.Should().BeTrue();
-        seqHi.Should().Be(5UL);
-        kindHi.Should().Be(DbEntryKind.Put);
-        gotHi?.ToArray().Should().Equal(v3);
+        Assert.True(ok);
+        Assert.Equal(5UL, seqHi);
+        Assert.Equal(DbEntryKind.Put, kindHi);
+        Assert.Equal(v3, gotHi?.ToArray());
     }
 
     [Fact]
@@ -131,10 +130,10 @@ public class MemTableTests
         var ok = mt.TryGet(key.AsSpan(), out var got, out var seq, out var kind);
 
         // Assert
-        ok.Should().BeTrue();
-        kind.Should().Be(DbEntryKind.DeleteKey);
-        got.HasValue.Should().BeFalse();
-        seq.Should().Be(3UL);
+        Assert.True(ok);
+        Assert.Equal(DbEntryKind.DeleteKey, kind);
+        Assert.False(got.HasValue);
+        Assert.Equal(3UL, seq);
     }
 
     [Fact]
@@ -148,9 +147,9 @@ public class MemTableTests
         var found = mt.TryGet("missing"u8.ToArray().AsSpan(), out _, out var seq, out var kind);
 
         // Assert
-        found.Should().BeTrue();
-        kind.Should().Be(DbEntryKind.DeleteKey);
-        seq.Should().Be(1UL);
+        Assert.True(found);
+        Assert.Equal(DbEntryKind.DeleteKey, kind);
+        Assert.Equal(1UL, seq);
     }
 
     [Fact]
@@ -169,8 +168,8 @@ public class MemTableTests
         var list = mt.Scan().ToList();
 
         // Assert
-        list.Select(t => Encoding.UTF8.GetString(t.Key.Span)).Should().Equal("a", "aa", "b");
-        list.Select(t => t.Kind).Should().AllBeEquivalentTo(DbEntryKind.Put);
+        Assert.Equal(new[] { "a", "aa", "b" }, list.Select(t => Encoding.UTF8.GetString(t.Key.Span)).ToArray());
+        Assert.All(list.Select(t => t.Kind), k => Assert.Equal(DbEntryKind.Put, k));
     }
 
     [Fact]
@@ -185,7 +184,7 @@ public class MemTableTests
         var results = mt.Scan("aa"u8.ToArray(), "c"u8.ToArray()).ToList();
 
         // Assert
-        results.Select(r => Encoding.UTF8.GetString(r.Key.Span)).Should().Equal("aa", "b");
+        Assert.Equal(new[] { "aa", "b" }, results.Select(r => Encoding.UTF8.GetString(r.Key.Span)).ToArray());
     }
 
     [Fact]
@@ -199,7 +198,7 @@ public class MemTableTests
         var res = mt.Scan("z"u8.ToArray()).ToList();
 
         // Assert
-        res.Should().BeEmpty();
+        Assert.Empty(res);
     }
 
     [Fact]
@@ -221,7 +220,7 @@ public class MemTableTests
         }
 
         // Assert
-        mt.Count.Should().Be(10); // tombstones counted as entries
+        Assert.Equal(10, mt.Count); // tombstones counted as entries
     }
 
     // Consolidated from MemTableRangeIndexTests
@@ -235,13 +234,13 @@ public class MemTableTests
         mt.PutRangeTombstone(B("f").Span, B("z").Span, 20UL);
 
         // Act & Assert
-        mt.TryGetCoveringRange(B("f").Span, out var s).Should().BeTrue();
-        s.Should().Be(20UL);
+        Assert.True(mt.TryGetCoveringRange(B("f").Span, out var s));
+        Assert.Equal(20UL, s);
 
-        mt.TryGetCoveringRange(B("b").Span, out var s2).Should().BeTrue();
-        s2.Should().Be(10UL);
+        Assert.True(mt.TryGetCoveringRange(B("b").Span, out var s2));
+        Assert.Equal(10UL, s2);
 
-        mt.TryGetCoveringRange(B("z").Span, out var s3).Should().BeFalse(); // end exclusive
+        Assert.False(mt.TryGetCoveringRange(B("z").Span, out var s3)); // end exclusive
     }
 
     [Fact]
@@ -254,8 +253,8 @@ public class MemTableTests
         var has = mt.TryGetCoveringRange(B("k").Span, out var s);
 
         // Assert
-        has.Should().BeFalse();
-        s.Should().Be(0UL);
+        Assert.False(has);
+        Assert.Equal(0UL, s);
     }
 
     [Fact]
@@ -270,8 +269,8 @@ public class MemTableTests
         var ok = mt.TryGetCoveringRange(B("b").Span, out var s);
 
         // Assert
-        ok.Should().BeTrue();
-        s.Should().Be(5UL);
+        Assert.True(ok);
+        Assert.Equal(5UL, s);
     }
 
     // Consolidated from MemTableConcurrencyTests
@@ -319,7 +318,7 @@ public class MemTableTests
             var list = mt.Scan().ToList();
             // basic sanity: keys must be non-decreasing
             for (var i = 1; i < list.Count; i++)
-                ByteComparer.Compare(list[i - 1].Key.Span, list[i].Key.Span).Should().BeLessThanOrEqualTo(0);
+                Assert.True(ByteComparer.Compare(list[i - 1].Key.Span, list[i].Key.Span) <= 0);
             lastNonEmpty = lastNonEmpty || list.Count > 0;
             scans++;
             await Task.Yield();
@@ -328,7 +327,7 @@ public class MemTableTests
         cts.Cancel();
         await Task.WhenAny(writer, Task.Delay(100));
 
-        lastNonEmpty.Should().BeTrue();
+        Assert.True(lastNonEmpty);
     }
 
 
@@ -345,12 +344,12 @@ public class MemTableTests
         var removed = mt.CompactRangesBySequence(3UL);
 
         // Assert
-        removed.Should().Be(2);
+        Assert.Equal(2, removed);
 
-        mt.TryGetCoveringRange(B("a").Span, out var s1).Should().BeFalse();
-        mt.TryGetCoveringRange(B("c").Span, out var s2).Should().BeFalse();
-        mt.TryGetCoveringRange(B("e").Span, out var s3).Should().BeTrue();
-        s3.Should().Be(3UL);
+        Assert.False(mt.TryGetCoveringRange(B("a").Span, out var s1));
+        Assert.False(mt.TryGetCoveringRange(B("c").Span, out var s2));
+        Assert.True(mt.TryGetCoveringRange(B("e").Span, out var s3));
+        Assert.Equal(3UL, s3);
     }
 
     [Fact]
@@ -366,9 +365,9 @@ public class MemTableTests
         var removed = mt.RemoveRangesWhere((s, e, seq) => seq < 25UL || s[0] == (byte)'e');
 
         // Assert
-        removed.Should().Be(3);
+        Assert.Equal(3, removed);
 
-        mt.TryGetCoveringRange(B("c").Span, out var s1).Should().BeFalse();
-        mt.TryGetCoveringRange(B("e").Span, out var s2).Should().BeFalse();
+        Assert.False(mt.TryGetCoveringRange(B("c").Span, out var s1));
+        Assert.False(mt.TryGetCoveringRange(B("e").Span, out var s2));
     }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Text;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Abstractions.Storage.Wal;
 using Gravel.Internals.Compaction;
@@ -55,6 +54,6 @@ public class EngineSstRangeTombstoneTests
         var got = await eng.GetAsync(B("c"));
 
         // Assert: masked by newer range delete in L1
-        got.Should().BeNull();
+        Assert.Null(got);
     }
 }

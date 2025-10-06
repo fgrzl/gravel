@@ -1,19 +1,19 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<TargetFramework>net8.0</TargetFramework>
+		<TargetFrameworks>net9.0;net8.0</TargetFrameworks>
 		<IsPackable>false</IsPackable>
 		<Nullable>enable</Nullable>
 		<LangVersion>latest</LangVersion>
 	</PropertyGroup>
 	<ItemGroup>
+	  <Compile Remove="Abstractions\**" />
+	  <EmbeddedResource Remove="Abstractions\**" />
+	  <None Remove="Abstractions\**" />
+	</ItemGroup>
+	<ItemGroup>
 		<PackageReference Include="coverlet.collector" Version="6.0.4">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>
-		</PackageReference>
-		<PackageReference Include="FluentAssertions" Version="8.7.1" />
-		<PackageReference Include="NSubstitute.Analyzers.CSharp" Version="1.0.17">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="xunit" Version="2.9.3" />
 		<PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
@@ -21,11 +21,9 @@
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
+		<PackageReference Include="FluentAssertions" Version="6.11.0" />
 	</ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\Gravel\Gravel.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-	  <Folder Include="Abstractions\" />
 	</ItemGroup>
 </Project>

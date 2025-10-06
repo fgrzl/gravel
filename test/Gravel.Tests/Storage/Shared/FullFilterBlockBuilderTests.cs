@@ -1,9 +1,8 @@
 using System;
 using System.Buffers.Binary;
-using FluentAssertions;
 using Xunit;
 
-namespace Gravel.Storage.Shared.Tests;
+namespace Gravel.Storage.Shared;
 
 public class FullFilterBlockBuilderTests
 {
@@ -19,13 +18,13 @@ public class FullFilterBlockBuilderTests
         var bytes = b.Finish();
 
         // Assert
-        bytes.Length.Should().BeGreaterThan(12);
+        Assert.True(bytes.Length > 12);
         var bits = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0, 4));
         var k = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4, 4));
         var len = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8, 4));
-        (12 + len).Should().Be(bytes.Length);
-        bits.Should().BeGreaterThan(0);
-        k.Should().BeGreaterThan(0);
+        Assert.Equal(bytes.Length, 12 + len);
+        Assert.True(bits > 0);
+        Assert.True(k > 0);
     }
 
     [Fact]
@@ -43,6 +42,6 @@ public class FullFilterBlockBuilderTests
         var bf2Bits = bytes2.AsSpan(12);
 
         // Assert: bit array should have changed (more bits set)
-        bf2Bits.SequenceEqual(bf1Bits).Should().BeFalse();
+        Assert.False(bf2Bits.SequenceEqual(bf1Bits));
     }
 }

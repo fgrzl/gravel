@@ -2,11 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using FluentAssertions;
 using Gravel.Internals;
 using Xunit;
 
-namespace Gravel.Storage.Shared.Tests;
+namespace Gravel.Storage.Shared;
 
 public class SimpleBlockBuilderTests
 {
@@ -52,7 +51,9 @@ public class SimpleBlockBuilderTests
         var decoded = Decode(bytes);
 
         // Assert
-        decoded.Select(d => Encoding.UTF8.GetString(d.Key)).Should().Equal("a", "b");
-        decoded.Select(d => (d.Handle.Offset, d.Handle.Size)).Should().Equal((10UL, 3UL), (20UL, 4UL));
+        var keys = decoded.Select(d => Encoding.UTF8.GetString(d.Key)).ToArray();
+        Assert.Equal(new[] { "a", "b" }, keys);
+        var handles = decoded.Select(d => (d.Handle.Offset, d.Handle.Size)).ToArray();
+        Assert.Equal(new[] { (10UL, 3UL), (20UL, 4UL) }, handles);
     }
 }

@@ -2,7 +2,6 @@
 using System.IO;
 using System.IO.Compression;
 using System.Text;
-using FluentAssertions;
 using Xunit;
 
 namespace Gravel.Compression.Snappy;
@@ -20,7 +19,7 @@ public class SnappyCodecTests
         var decomp = SnappyCodec.Decompress(comp);
 
         // Assert
-        decomp.Should().BeEquivalentTo(src);
+        Assert.Equal(src, decomp);
     }
 
     [Fact]
@@ -36,7 +35,7 @@ public class SnappyCodecTests
         var decomp = SnappyCodec.Decompress(comp);
 
         // Assert
-        decomp.Should().BeEquivalentTo(src);
+        Assert.Equal(src, decomp);
     }
 
     [Fact]
@@ -49,11 +48,11 @@ public class SnappyCodecTests
         var comp = SnappyCodec.Compress(src);
 
         // Assert size
-        comp.Length.Should().BeLessThan(src.Length + 100); // allow small overhead
+        Assert.True(comp.Length < src.Length + 100); // allow small overhead
 
         // Assert correctness
         var decomp = SnappyCodec.Decompress(comp);
-        decomp.Should().BeEquivalentTo(src);
+        Assert.Equal(src, decomp);
     }
 
     [Fact]
@@ -86,7 +85,7 @@ public class SnappyCodecTests
         }
 
         // Assert
-        outMs.ToArray().Should().BeEquivalentTo(data);
+        Assert.Equal(data, outMs.ToArray());
     }
 
     [Fact]
@@ -99,7 +98,7 @@ public class SnappyCodecTests
         Action act = () => SnappyCodec.Decompress(bad);
 
         // Assert
-        act.Should().Throw<InvalidDataException>();
+        Assert.Throws<InvalidDataException>(act);
     }
 
     [Fact]
@@ -119,7 +118,7 @@ public class SnappyCodecTests
         Action act = () => SnappyCodec.Decompress(buf);
 
         // Assert
-        act.Should().Throw<InvalidDataException>();
+        Assert.Throws<InvalidDataException>(act);
     }
 
     [Fact]
@@ -133,7 +132,7 @@ public class SnappyCodecTests
             ms.WriteByte(0x0A);
             // literal len 4 (len-1=3 -> (3<<2)|0)
             ms.WriteByte(3 << 2 | 0);
-            ms.Write([1, 2, 3, 4]);
+            ms.Write(new byte[] { 1, 2, 3, 4 });
             // COPY_1: kind=1, len=4 -> (0<<2)|1
             ms.WriteByte(0 << 2 | 1);
             // offset low byte = 0 -> invalid
@@ -145,7 +144,7 @@ public class SnappyCodecTests
         Action act = () => SnappyCodec.Decompress(buf);
 
         // Assert
-        act.Should().Throw<InvalidDataException>();
+        Assert.Throws<InvalidDataException>(act);
     }
 
     [Fact]
@@ -161,7 +160,7 @@ public class SnappyCodecTests
             // COPY_2 tag with len=1 (encoded len-1=0)
             ms.WriteByte(0 << 2 | 2);
             // offset 0x0100 -> 256, out of bounds when w=2
-            ms.Write([0x00, 0x01]);
+            ms.Write(new byte[] { 0x00, 0x01 });
             buf = ms.ToArray();
         }
 
@@ -169,7 +168,7 @@ public class SnappyCodecTests
         Action act = () => SnappyCodec.Decompress(buf);
 
         // Assert
-        act.Should().Throw<InvalidDataException>();
+        Assert.Throws<InvalidDataException>(act);
     }
 
     [Fact]
@@ -185,6 +184,6 @@ public class SnappyCodecTests
         var decomp = SnappyCodec.Decompress(comp);
 
         // Assert
-        decomp.Should().BeEquivalentTo(src);
+        Assert.Equal(src, decomp);
     }
 }

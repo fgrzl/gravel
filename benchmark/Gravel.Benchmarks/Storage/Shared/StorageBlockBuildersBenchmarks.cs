@@ -47,7 +47,7 @@ public class StorageBlockBuildersBenchmarks
     [Benchmark]
     public void DataBlockBuilder_AddAll()
     {
-        var b = new DataBlockBuilder(16);
+        var b = new DataBlockBuilder();
         for (var i = 0; i < N; i++)
             b.Add(_keys[i], _values[i]);
     }
@@ -55,7 +55,7 @@ public class StorageBlockBuildersBenchmarks
     [Benchmark]
     public void DataBlockBuilder_AddAndFinishPooled()
     {
-        var b = new DataBlockBuilder(16);
+        var b = new DataBlockBuilder();
         for (var i = 0; i < N; i++)
             b.Add(_keys[i], _values[i]);
 

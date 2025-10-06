@@ -1,7 +1,6 @@
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.TestHelpers;
 using Xunit;
 
@@ -39,14 +38,20 @@ public class BackupRestoreTests
         var g2 = await restored.GetAsync("k2"u8.ToArray());
 
         // Assert
-        g1.HasValue.Should().BeTrue();
-        Encoding.UTF8.GetString(g1!.Value.Span).Should().Be("v1");
-        g2.HasValue.Should().BeTrue();
-        Encoding.UTF8.GetString(g2!.Value.Span).Should().Be("v2");
+        Assert.True(g1.HasValue);
+        Assert.Equal("v1", Encoding.UTF8.GetString(g1!.Value.Span));
+        Assert.True(g2.HasValue);
+        Assert.Equal("v2", Encoding.UTF8.GetString(g2!.Value.Span));
 
         // Cleanup
         await restored.DisposeAsync();
 
-        try { File.Delete(archive); } catch { }
+        try
+        {
+            File.Delete(archive);
+        }
+        catch
+        {
+        }
     }
 }

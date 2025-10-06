@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Exceptions;
 using Xunit;
@@ -33,11 +32,11 @@ public abstract class EngineTestsBase
         var deleted = await Engine.DeleteAsync(key);
         var missing = await Engine.GetAsync(key);
 
-        got.HasValue.Should().BeTrue();
-        got!.Value.ToArray().Should().Equal(val.ToArray());
-        existed.Should().BeTrue();
-        deleted.Should().BeTrue();
-        missing.Should().BeNull();
+        Assert.True(got.HasValue);
+        Assert.Equal(val.ToArray(), got!.Value.ToArray());
+        Assert.True(existed);
+        Assert.True(deleted);
+        Assert.Null(missing);
     }
 
     [Fact]
@@ -49,8 +48,8 @@ public abstract class EngineTestsBase
         await Engine.PutAsync(key, val);
         var got = await Engine.GetAsync(key);
 
-        got.HasValue.Should().BeTrue();
-        got!.Value.ToArray().Should().Equal(val.ToArray());
+        Assert.True(got.HasValue);
+        Assert.Equal(val.ToArray(), got!.Value.ToArray());
     }
 
     [Fact]
@@ -58,17 +57,17 @@ public abstract class EngineTestsBase
     {
         var k = B("d1");
         await Engine.PutAsync(k, B("v"));
-        (await Engine.GetAsync(k)).HasValue.Should().BeTrue();
+        Assert.True((await Engine.GetAsync(k)).HasValue);
         var deleted = await Engine.DeleteAsync(k);
-        deleted.Should().BeTrue();
-        (await Engine.GetAsync(k)).Should().BeNull();
+        Assert.True(deleted);
+        Assert.Null(await Engine.GetAsync(k));
     }
 
     [Fact]
     public async Task should_try_get_return_false_given_missing_key()
     {
         var missing = await Engine.ExistsAsync(B("nope"));
-        missing.Should().BeFalse();
+        Assert.False(missing);
     }
 
     [Fact]
@@ -81,7 +80,7 @@ public abstract class EngineTestsBase
         await foreach (var item in Engine.ScanAsync(new Query(null)))
             keys.Add(Encoding.UTF8.GetString(item.Key.Span));
 
-        keys.Should().Equal("a", "b", "c");
+        Assert.Equal(new[] { "a", "b", "c" }, keys);
     }
 
     [Fact]
@@ -94,7 +93,7 @@ public abstract class EngineTestsBase
         await foreach (var item in Engine.ScanAsync(new Query(B("b"), B("d"))))
             results.Add(Encoding.UTF8.GetString(item.Key.Span));
 
-        results.Should().Equal("b", "c");
+        Assert.Equal(new[] { "b", "c" }, results);
     }
 
     [Fact]
@@ -107,10 +106,10 @@ public abstract class EngineTestsBase
         await foreach (var e in Engine.ScanAsync(new Query(null)))
         {
             enumerated++;
-            e.Key.Length.Should().BeGreaterThan(0);
+            Assert.True(e.Key.Length > 0);
         }
 
-        enumerated.Should().BeGreaterThanOrEqualTo(2);
+        Assert.True(enumerated >= 2);
     }
 
     [Fact]
@@ -128,8 +127,8 @@ public abstract class EngineTestsBase
             break;
         }
 
-        Encoding.UTF8.GetString(kcopy.Span).Should().Be("p");
-        Encoding.UTF8.GetString(vcopy.Span).Should().Be("v");
+        Assert.Equal("p", Encoding.UTF8.GetString(kcopy.Span));
+        Assert.Equal("v", Encoding.UTF8.GetString(vcopy.Span));
     }
 
     [Fact]
@@ -141,13 +140,13 @@ public abstract class EngineTestsBase
 
         // read back
         for (var i = 0; i < 10; i++)
-            (await Engine.GetAsync(B($"k{i}"))).HasValue.Should().BeTrue();
+            Assert.True((await Engine.GetAsync(B($"k{i}"))).HasValue);
 
         // delete a few
         await Engine.DeleteAsync(B("k3"));
         await Engine.DeleteAsync(B("k7"));
-        (await Engine.GetAsync(B("k3"))).Should().BeNull();
-        (await Engine.GetAsync(B("k7"))).Should().BeNull();
+        Assert.Null(await Engine.GetAsync(B("k3")));
+        Assert.Null(await Engine.GetAsync(B("k7")));
     }
 
     [Fact]
@@ -208,8 +207,8 @@ public abstract class EngineTestsBase
         var got = await Engine.GetAsync(B("a"));
 
         // Assert: value should still be visible
-        got.HasValue.Should().BeTrue();
-        got!.Value.ToArray().Should().Equal(B("va").ToArray());
+        Assert.True(got.HasValue);
+        Assert.Equal(B("va").ToArray(), got!.Value.ToArray());
     }
 
     [Fact]
@@ -228,7 +227,7 @@ public abstract class EngineTestsBase
         var got = await Engine.GetAsync(B("k1000"), cts.Token);
 
         // Assert: the key should be considered deleted by the range and not returned.
-        got.Should().BeNull();
+        Assert.Null(got);
     }
 
     [Fact]
@@ -248,12 +247,12 @@ public abstract class EngineTestsBase
         await txn.RollbackAsync();
 
         // Assert
-        existsAfterPut.Should().BeTrue();
-        got.HasValue.Should().BeTrue();
-        got!.Value.ToArray().Should().Equal(B("v1").ToArray());
-        existsAfterDel.Should().BeFalse();
-        gotAfterDel.Should().BeNull();
-        (await Engine.GetAsync(k)).Should().BeNull();
+        Assert.True(existsAfterPut);
+        Assert.True(got.HasValue);
+        Assert.Equal(B("v1").ToArray(), got!.Value.ToArray());
+        Assert.False(existsAfterDel);
+        Assert.Null(gotAfterDel);
+        Assert.Null(await Engine.GetAsync(k));
     }
 
     [Fact]
@@ -276,19 +275,19 @@ public abstract class EngineTestsBase
         await txn.CommitAsync();
 
         // Assert: within txn view
-        a.HasValue.Should().BeTrue();
-        b.Should().BeNull();
-        cBefore.Should().BeNull();
-        bExists.Should().BeFalse();
-        cAfter.HasValue.Should().BeTrue();
-        Encoding.UTF8.GetString(cAfter!.Value.Span).Should().Be("vc2");
+        Assert.True(a.HasValue);
+        Assert.Null(b);
+        Assert.Null(cBefore);
+        Assert.False(bExists);
+        Assert.True(cAfter.HasValue);
+        Assert.Equal("vc2", Encoding.UTF8.GetString(cAfter!.Value.Span));
 
         // After commit
         var postB = await Engine.GetAsync(B("b"));
-        postB.Should().BeNull();
+        Assert.Null(postB);
         var postC = await Engine.GetAsync(B("c"));
-        postC.HasValue.Should().BeTrue();
-        Encoding.UTF8.GetString(postC!.Value.Span).Should().Be("vc2");
+        Assert.True(postC.HasValue);
+        Assert.Equal("vc2", Encoding.UTF8.GetString(postC!.Value.Span));
     }
 
     [Fact]
@@ -302,10 +301,10 @@ public abstract class EngineTestsBase
         await txn.CommitAsync();
 
         // Assert
-        txn.CommitSequence.Should().NotBeNull();
-        txn.CommitSequence!.Value.Should().BeGreaterThan(0);
+        Assert.NotNull(txn.CommitSequence);
+        Assert.True(txn.CommitSequence!.Value > 0);
         var again = async () => await txn.CommitAsync().AsTask();
-        await again.Should().ThrowAsync<GravelException>();
+        await Assert.ThrowsAsync<GravelException>(async () => await again());
     }
 
     [Fact]
@@ -322,7 +321,7 @@ public abstract class EngineTestsBase
         }
 
         // Assert
-        (await Engine.GetAsync(k)).Should().BeNull();
+        Assert.Null(await Engine.GetAsync(k));
     }
 
     [Fact]
@@ -338,7 +337,7 @@ public abstract class EngineTestsBase
         var act = async () => await t1.CommitAsync().AsTask();
 
         // Assert
-        await act.Should().ThrowAsync<GravelInvalidOperationException>();
+        await Assert.ThrowsAsync<GravelInvalidOperationException>(async () => await act());
 
         // Arrange second txn
         await using var t2 = await Engine.BeginTransactionAsync();
@@ -348,7 +347,7 @@ public abstract class EngineTestsBase
         var act2 = async () => await t2.CommitAsync().AsTask();
 
         // Assert
-        await act2.Should().ThrowAsync<GravelInvalidOperationException>();
+        await Assert.ThrowsAsync<GravelInvalidOperationException>(async () => await act2());
     }
 
     [Fact]
@@ -366,7 +365,7 @@ public abstract class EngineTestsBase
         var act = async () => await t2.CommitAsync().AsTask();
 
         // Assert
-        await act.Should().ThrowAsync<GravelInvalidOperationException>();
+        await Assert.ThrowsAsync<GravelInvalidOperationException>(async () => await act());
     }
 
     // New tests covering top-level InsertAsync and Batch duplicate-insert behavior
@@ -378,8 +377,8 @@ public abstract class EngineTestsBase
 
         await Engine.InsertAsync(k, v);
         var got = await Engine.GetAsync(k);
-        got.HasValue.Should().BeTrue();
-        Encoding.UTF8.GetString(got!.Value.Span).Should().Be("vi");
+        Assert.True(got.HasValue);
+        Assert.Equal("vi", Encoding.UTF8.GetString(got!.Value.Span));
     }
 
     [Fact]
@@ -389,7 +388,7 @@ public abstract class EngineTestsBase
         await Engine.PutAsync(k, B("v0"));
 
         var act = async () => await Engine.InsertAsync(k, B("v1"));
-        await act.Should().ThrowAsync<GravelInvalidOperationException>();
+        await Assert.ThrowsAsync<GravelInvalidOperationException>(async () => await act());
     }
 
     [Fact]
@@ -403,6 +402,6 @@ public abstract class EngineTestsBase
         };
 
         var act = async () => await Engine.BatchAsync(batch);
-        await act.Should().ThrowAsync<GravelInvalidOperationException>();
+        await Assert.ThrowsAsync<GravelInvalidOperationException>(async () => await act());
     }
 }

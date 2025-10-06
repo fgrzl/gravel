@@ -3,11 +3,10 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using FluentAssertions;
 using Gravel.Internals;
 using Xunit;
 
-namespace Gravel.Storage.Shared.Tests;
+namespace Gravel.Storage.Shared;
 
 public class RangeDeleteBlockBuilderTests
 {
@@ -49,8 +48,10 @@ public class RangeDeleteBlockBuilderTests
         var decoded = Decode(bytes);
 
         // Assert: entries sorted by start
-        decoded.Select(x => Encoding.UTF8.GetString(x.Start)).Should().Equal("a", "c");
-        decoded.Select(x => x.Seq).Should().Equal(1UL, 2UL);
+        var starts = decoded.Select(x => Encoding.UTF8.GetString(x.Start)).ToArray();
+        Assert.Equal(new[] { "a", "c" }, starts);
+        var seqs = decoded.Select(x => x.Seq).ToArray();
+        Assert.Equal(new[] { 1UL, 2UL }, seqs);
     }
 
     [Fact]
@@ -63,6 +64,6 @@ public class RangeDeleteBlockBuilderTests
         var bytes = b.Finish();
 
         // Assert
-        bytes.Should().BeEmpty();
+        Assert.Empty(bytes);
     }
 }

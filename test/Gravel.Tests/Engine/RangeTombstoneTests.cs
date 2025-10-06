@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Compression;
 using Gravel.Storage.FileSystem.Sst;
@@ -47,7 +46,7 @@ public class RangeTombstoneTests
             var got = await r.GetAsync(B("b"));
 
             // Assert
-            got.Should().BeNull();
+            Assert.Null(got);
         }
         finally
         {
@@ -92,7 +91,7 @@ public class RangeTombstoneTests
             }
 
             // Assert
-            seen.Should().BeEmpty();
+            Assert.Empty(seen);
         }
         finally
         {

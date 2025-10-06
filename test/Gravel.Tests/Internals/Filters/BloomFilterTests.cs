@@ -1,6 +1,5 @@
 using System;
 using System.Reflection;
-using FluentAssertions;
 using Gravel.TestHelpers;
 using Xunit;
 
@@ -18,7 +17,7 @@ public class BloomFilterTests
         var any = bf.MightContain("nope"u8);
 
         // Assert
-        any.Should().BeFalse();
+        Assert.False(any);
     }
 
     [Fact]
@@ -33,7 +32,7 @@ public class BloomFilterTests
         var res = bf.MightContain(data);
 
         // Assert
-        res.Should().BeTrue();
+        Assert.True(res);
     }
 
     [Fact]
@@ -51,7 +50,7 @@ public class BloomFilterTests
         var length = rom.Length;
 
         // Assert
-        length.Should().Be((bf.Bits + 7) / 8);
+        Assert.Equal((bf.Bits + 7) / 8, length);
     }
 
     [Fact]
@@ -61,8 +60,8 @@ public class BloomFilterTests
         var bf = BloomFilter.Create(0);
 
         // Assert
-        bf.Bits.Should().BeGreaterThanOrEqualTo(8);
-        bf.HashFunctions.Should().BeGreaterThanOrEqualTo(1);
+        Assert.True(bf.Bits >= 8);
+        Assert.True(bf.HashFunctions >= 1);
     }
 
     [Fact]
@@ -72,8 +71,8 @@ public class BloomFilterTests
         var bf = BloomFilter.Create(1000, 1e-9);
 
         // Assert
-        bf.Bits.Should().BeGreaterThan(0);
-        bf.HashFunctions.Should().BeGreaterThan(0);
+        Assert.True(bf.Bits > 0);
+        Assert.True(bf.HashFunctions > 0);
     }
 
     [Fact]
@@ -88,7 +87,7 @@ public class BloomFilterTests
         var result = bf.MightContain(data);
 
         // Assert
-        result.Should().BeTrue();
+        Assert.True(result);
     }
 
     [Fact]
@@ -104,9 +103,10 @@ public class BloomFilterTests
         var act = () => bf.Add(large);
 
         // Assert
-        act.Should().NotThrow();
+        // xUnit has no direct NotThrow assert; invoking action should not throw
+        act();
         // Optionally item likely present
-        bf.MightContain(large).Should().BeTrue();
+        Assert.True(bf.MightContain(large));
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class BloomFilterTests
 
         // Assert: Create clamps negative to 1, so should not throw but produce a valid filter. instead test invalid falsePositiveRate
         Action act2 = () => BloomFilter.Create(10, -0.5);
-        act.Should().NotThrow();
-        act2.Should().NotThrow();
+        act();
+        act2();
     }
 }

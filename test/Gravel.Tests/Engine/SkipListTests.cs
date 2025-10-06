@@ -1,5 +1,4 @@
 using System.Linq;
-using FluentAssertions;
 using Gravel.TestHelpers;
 using Xunit;
 
@@ -17,10 +16,10 @@ public class SkipListTests
         sl.InsertOrUpdate(42, "forty-two");
 
         // Assert
-        sl.Count.Should().Be(1);
+        Assert.Equal(1, sl.Count);
         var ok = sl.TryGet(42, out var value);
-        ok.Should().BeTrue();
-        value.Should().Be("forty-two");
+        Assert.True(ok);
+        Assert.Equal("forty-two", value);
     }
 
     [Fact]
@@ -34,9 +33,9 @@ public class SkipListTests
         sl.InsertOrUpdate(1, "ONE");
 
         // Assert
-        sl.Count.Should().Be(1, "updating an existing key should not increment count");
-        sl.TryGet(1, out var value).Should().BeTrue();
-        value.Should().Be("ONE");
+        Assert.Equal(1, sl.Count); // updating an existing key should not increment count
+        Assert.True(sl.TryGet(1, out var value));
+        Assert.Equal("ONE", value);
     }
 
     [Fact]
@@ -45,15 +44,15 @@ public class SkipListTests
         // Arrange
         var sl = new SkipList<int, string>();
         sl.InsertOrUpdate(5, "five");
-        sl.Count.Should().Be(1);
+        Assert.Equal(1, sl.Count);
 
         // Act
         var deleted = sl.Delete(5);
 
         // Assert
-        deleted.Should().BeTrue();
-        sl.Count.Should().Be(0);
-        sl.TryGet(5, out _).Should().BeFalse();
+        Assert.True(deleted);
+        Assert.Equal(0, sl.Count);
+        Assert.False(sl.TryGet(5, out _));
     }
 
     [Fact]
@@ -67,8 +66,8 @@ public class SkipListTests
         var deleted = sl.Delete(3);
 
         // Assert
-        deleted.Should().BeFalse();
-        sl.Count.Should().Be(1);
+        Assert.False(deleted);
+        Assert.Equal(1, sl.Count);
     }
 
     [Fact]
@@ -85,12 +84,14 @@ public class SkipListTests
         var scanned = sl.Scan().ToList();
 
         // Assert
-        scanned.Select(x => x.Key).Should().BeInAscendingOrder();
-        scanned.Count.Should().Be(20);
+        var keySeq = scanned.Select(x => x.Key).ToArray();
+        var ordered = keySeq.OrderBy(x => x).ToArray();
+        Assert.True(keySeq.SequenceEqual(ordered));
+        Assert.Equal(20, scanned.Count);
         for (var i = 1; i <= 20; i++)
         {
-            scanned[i - 1].Key.Should().Be(i);
-            scanned[i - 1].Value.Should().Be($"v{i}");
+            Assert.Equal(i, scanned[i - 1].Key);
+            Assert.Equal($"v{i}", scanned[i - 1].Value);
         }
     }
 
@@ -106,7 +107,7 @@ public class SkipListTests
         var results = sl.Scan(3, 7, true, true).Select(x => x.Key).ToList();
 
         // Assert
-        results.Should().Equal(3, 4, 5, 6);
+        Assert.Equal(new[] { 3, 4, 5, 6 }, results);
     }
 
     [Fact]
@@ -121,7 +122,7 @@ public class SkipListTests
         var results = sl.Scan(4, hasStart: true).Select(x => x.Key).ToList();
 
         // Assert
-        results.Should().Equal(4, 5);
+        Assert.Equal(new[] { 4, 5 }, results);
     }
 
     [Fact]
@@ -136,7 +137,7 @@ public class SkipListTests
         var results = sl.Scan(end: 3, hasEnd: true).Select(x => x.Key).ToList();
 
         // Assert
-        results.Should().Equal(1, 2);
+        Assert.Equal(new[] { 1, 2 }, results);
     }
 
     [Fact]
@@ -149,7 +150,7 @@ public class SkipListTests
         var found = sl.TryGet(999, out var value);
 
         // Assert
-        found.Should().BeFalse();
-        value.Should().BeNull();
+        Assert.False(found);
+        Assert.Null(value);
     }
 }

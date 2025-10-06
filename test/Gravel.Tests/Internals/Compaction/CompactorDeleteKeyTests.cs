@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Engine;
 using Gravel.TestHelpers;
@@ -54,10 +53,10 @@ public class CompactorDeleteKeyTests
             outList.Add(e);
 
         // Assert: only delete-key remains
-        outList.Should().HaveCount(1);
-        outList[0].Kind.Should().Be(DbEntryKind.DeleteKey);
-        Encoding.UTF8.GetString(outList[0].Key.Span).Should().Be("k");
-        outList[0].Sequence.Should().Be(20);
+        Assert.Equal(1, outList.Count);
+        Assert.Equal(DbEntryKind.DeleteKey, outList[0].Kind);
+        Assert.Equal("k", Encoding.UTF8.GetString(outList[0].Key.Span));
+        Assert.Equal(20UL, outList[0].Sequence);
     }
 
     [Fact]
@@ -74,11 +73,11 @@ public class CompactorDeleteKeyTests
             outList.Add(e);
 
         // Assert: expect 2 entries (range tombstone + newer put)
-        outList.Should().HaveCount(2);
-        outList.Any(e => e.Kind == DbEntryKind.DeleteRange).Should().BeTrue();
+        Assert.Equal(2, outList.Count);
+        Assert.True(outList.Any(e => e.Kind == DbEntryKind.DeleteRange));
         var put = outList.Single(e => e.Kind == DbEntryKind.Put);
-        Encoding.UTF8.GetString(put.Key.Span).Should().Be("x");
-        put.Sequence.Should().Be(12);
+        Assert.Equal("x", Encoding.UTF8.GetString(put.Key.Span));
+        Assert.Equal(12UL, put.Sequence);
     }
 
     [Fact]
@@ -95,7 +94,7 @@ public class CompactorDeleteKeyTests
             outList.Add(e);
 
         // Assert: only the range tombstone remains (put dropped)
-        outList.Should().HaveCount(1);
-        outList[0].Kind.Should().Be(DbEntryKind.DeleteRange);
+        Assert.Equal(1, outList.Count);
+        Assert.Equal(DbEntryKind.DeleteRange, outList[0].Kind);
     }
 }

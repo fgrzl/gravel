@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Compression;
 using Gravel.Engine;
@@ -102,12 +101,12 @@ public class CompactorRangeTests : IAsyncLifetime
 
         // Assert: b is masked; range exists in meta and matches
         using var r = new FileSstReader(outPath, new CompressorFactory(), NullLogger<FileSstReader>.Instance);
-        (await r.GetAsync(B("b"))).Should().BeNull();
+        Assert.Null(await r.GetAsync(B("b")));
         var ranges = r.GetRangeDeletes();
-        ranges.Should().NotBeEmpty();
-        ranges.Any(x => StringComparer.Ordinal.Compare(Encoding.UTF8.GetString(x.Start.Span), "a") == 0 &&
-                        StringComparer.Ordinal.Compare(Encoding.UTF8.GetString(x.End.Span), "c") == 0 &&
-                        x.Seq == 11).Should().BeTrue();
+        Assert.NotEmpty(ranges);
+        Assert.True(ranges.Any(x => StringComparer.Ordinal.Compare(Encoding.UTF8.GetString(x.Start.Span), "a") == 0 &&
+                                    StringComparer.Ordinal.Compare(Encoding.UTF8.GetString(x.End.Span), "c") == 0 &&
+                                    x.Seq == 11));
     }
 
     [Fact]
@@ -127,11 +126,11 @@ public class CompactorRangeTests : IAsyncLifetime
 
         // Assert: g is masked; at least one covering range with seq >= 7 exists
         using var r = new FileSstReader(outPath, new CompressorFactory(), NullLogger<FileSstReader>.Instance);
-        (await r.GetAsync(B("g"))).Should().BeNull();
+        Assert.Null(await r.GetAsync(B("g")));
         var ranges = r.GetRangeDeletes();
-        ranges.Should().NotBeEmpty();
-        ranges.Any(x => StringComparer.Ordinal.Compare(Encoding.UTF8.GetString(x.Start.Span), "f") <= 0 &&
-                        StringComparer.Ordinal.Compare("g", Encoding.UTF8.GetString(x.End.Span)) < 0 &&
-                        x.Seq >= 7).Should().BeTrue();
+        Assert.NotEmpty(ranges);
+        Assert.True(ranges.Any(x => StringComparer.Ordinal.Compare(Encoding.UTF8.GetString(x.Start.Span), "f") <= 0 &&
+                                    StringComparer.Ordinal.Compare("g", Encoding.UTF8.GetString(x.End.Span)) < 0 &&
+                                    x.Seq >= 7));
     }
 }

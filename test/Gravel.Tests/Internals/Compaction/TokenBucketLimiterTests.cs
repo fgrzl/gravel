@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Xunit;
 
 namespace Gravel.Internals.Compaction;
@@ -21,7 +20,7 @@ public class TokenBucketLimiterTests
         sw.Stop();
 
         // Assert
-        sw.Elapsed.Should().BeLessThan(TimeSpan.FromMilliseconds(50));
+        Assert.True(sw.Elapsed < TimeSpan.FromMilliseconds(50));
     }
 
     [Fact]
@@ -37,8 +36,8 @@ public class TokenBucketLimiterTests
 
         // Assert
         var expectedMs = (300 - 100) / 1000.0 * 1000.0; // ≈ 200ms
-        sw.ElapsedMilliseconds.Should().BeGreaterThanOrEqualTo((long)(expectedMs * 0.5)); // not immediate
-        sw.ElapsedMilliseconds.Should().BeLessThan(2000); // should not take excessively long
+        Assert.True(sw.ElapsedMilliseconds >= (long)(expectedMs * 0.5)); // not immediate
+        Assert.True(sw.ElapsedMilliseconds < 2000); // should not take excessively long
     }
 
     [Fact]
@@ -58,7 +57,7 @@ public class TokenBucketLimiterTests
         sw.Stop();
 
         // Assert
-        sw.ElapsedMilliseconds.Should().BeLessThan(400);
+        Assert.True(sw.ElapsedMilliseconds < 400);
     }
 
     [Fact]
@@ -78,9 +77,9 @@ public class TokenBucketLimiterTests
         var act = async () => await limiter.WaitToConsumeAsync(10_000, cts.Token);
 
         // Assert
-        await act.Should().ThrowAsync<OperationCanceledException>();
+        await Assert.ThrowsAsync<OperationCanceledException>(act);
         sw.Stop();
-        sw.ElapsedMilliseconds.Should().BeLessThan(2000);
+        Assert.True(sw.ElapsedMilliseconds < 2000);
         await t;
     }
 }

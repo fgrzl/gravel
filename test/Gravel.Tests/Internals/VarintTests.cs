@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using FluentAssertions;
 using Xunit;
 
 namespace Gravel.Internals;
@@ -27,8 +26,8 @@ public class VarIntTests
         var read = VarInt.Read32(arr, ref pos);
 
         // Assert
-        read.Should().Be(value);
-        pos.Should().Be(written);
+        Assert.Equal(value, read);
+        Assert.Equal(written, pos);
     }
 
     [Theory]
@@ -50,8 +49,8 @@ public class VarIntTests
         var read = VarInt.Read64(ref span);
 
         // Assert
-        read.Should().Be(value);
-        span.Length.Should().Be(0);
+        Assert.Equal(value, read);
+        Assert.Equal(0, span.Length);
     }
 
     [Fact]
@@ -68,7 +67,7 @@ public class VarIntTests
         };
 
         // Assert
-        act.Should().Throw<EndOfStreamException>();
+        Assert.Throws<EndOfStreamException>(act);
     }
 
     [Fact]
@@ -85,7 +84,7 @@ public class VarIntTests
         };
 
         // Assert
-        act.Should().Throw<EndOfStreamException>();
+        Assert.Throws<EndOfStreamException>(act);
     }
 
     [Fact]
@@ -97,7 +96,7 @@ public class VarIntTests
         Action act = () => VarInt.Write64(new Span<byte>(new byte[1]), 0xdeadbeef);
 
         // Assert
-        act.Should().Throw<ArgumentException>();
+        Assert.Throws<ArgumentException>(act);
     }
 
     [Fact]
@@ -115,7 +114,7 @@ public class VarIntTests
         };
 
         // Assert
-        act.Should().Throw<FormatException>();
+        Assert.Throws<FormatException>(act);
     }
 
     [Fact]
@@ -132,6 +131,6 @@ public class VarIntTests
         };
 
         // Assert
-        act.Should().Throw<FormatException>();
+        Assert.Throws<FormatException>(act);
     }
 }

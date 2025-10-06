@@ -1,5 +1,4 @@
 ﻿using System;
-using FluentAssertions;
 using Xunit;
 
 namespace Gravel.Internals;
@@ -17,7 +16,7 @@ public class ByteComparerTests
         var res = ByteComparer.Compare(a, b);
 
         // Assert
-        res.Should().BeNegative();
+        Assert.True(res < 0);
     }
 
     [Fact]
@@ -31,7 +30,7 @@ public class ByteComparerTests
         var res = ByteComparer.Compare(a.AsSpan(), b.AsSpan());
 
         // Assert
-        res.Should().Be(0);
+        Assert.Equal(0, res);
     }
 
     [Fact]
@@ -43,8 +42,8 @@ public class ByteComparerTests
         var c = new byte[] { 1 };
 
         // Act & Assert
-        ByteComparer.Compare(a, b).Should().Be(0);
-        ByteComparer.Compare(a, c).Should().BeNegative();
-        ByteComparer.Compare(c, a).Should().BePositive();
+        Assert.Equal(0, ByteComparer.Compare(a, b));
+        Assert.True(ByteComparer.Compare(a, c) < 0);
+        Assert.True(ByteComparer.Compare(c, a) > 0);
     }
 }

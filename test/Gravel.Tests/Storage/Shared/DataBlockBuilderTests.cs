@@ -5,7 +5,7 @@ using System.Text;
 using FluentAssertions;
 using Xunit;
 
-namespace Gravel.Storage.Shared.Tests;
+namespace Gravel.Storage.Shared;
 
 public class DataBlockBuilderTests
 {

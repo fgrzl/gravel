@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.TestHelpers;
 using Xunit;
 
@@ -24,7 +23,7 @@ public class LevelsTests
         var count = lvls.LevelCount;
 
         // Assert
-        count.Should().Be(3);
+        Assert.Equal(3, count);
     }
 
     [Fact]
@@ -39,11 +38,11 @@ public class LevelsTests
         var snap = lvls.SnapshotLevels();
 
         // Assert
-        snap.Count.Should().Be(2);
-        snap[0].Count.Should().Be(1);
-        snap[1].Count.Should().Be(1);
-        snap[0].First().Path.Should().Contain("a");
-        snap[1].First().Path.Should().Contain("b");
+        Assert.Equal(2, snap.Count);
+        Assert.Equal(1, snap[0].Count);
+        Assert.Equal(1, snap[1].Count);
+        Assert.Contains("a", snap[0].First().Path);
+        Assert.Contains("b", snap[1].First().Path);
     }
 
     [Fact]
@@ -59,7 +58,7 @@ public class LevelsTests
         var all = lvls.SnapshotAll();
 
         // Assert
-        all.Select(f => f.Path).Should().HaveCount(3);
+        Assert.Equal(3, all.Select(f => f.Path).Count());
     }
 
     [Fact]
@@ -71,8 +70,8 @@ public class LevelsTests
         lvls.Add(0, File("b"));
 
         // Act & Assert
-        lvls.MeetsFanIn(0, 2).Should().BeTrue();
-        lvls.MeetsFanIn(0, 3).Should().BeFalse();
+        Assert.True(lvls.MeetsFanIn(0, 2));
+        Assert.False(lvls.MeetsFanIn(0, 3));
     }
 
     [Fact]
@@ -88,8 +87,8 @@ public class LevelsTests
         var after = lvls.SnapshotLevels();
 
         // Assert
-        taken.Should().HaveCount(2);
-        after[0].Should().BeEmpty();
+        Assert.Equal(2, taken.Count);
+        Assert.Empty(after[0]);
     }
 
     [Fact]
@@ -104,9 +103,9 @@ public class LevelsTests
         lvls.Add(0, File("b"));
 
         // Assert
-        snap[0].Count.Should().Be(1); // immutable snapshot
+        Assert.Equal(1, snap[0].Count); // immutable snapshot
         var newSnap = lvls.SnapshotLevels();
-        newSnap[0].Count.Should().Be(2);
+        Assert.Equal(2, newSnap[0].Count);
     }
 
     [Fact]
@@ -127,13 +126,13 @@ public class LevelsTests
 
         // Assert: snapshot is consistent and counts match
         var snap = lvls.SnapshotLevels();
-        snap.Count.Should().Be(3);
-        snap.Select(l => l.Count).Sum().Should().Be(10);
+        Assert.Equal(3, snap.Count);
+        Assert.Equal(10, snap.Select(l => l.Count).Sum());
         // Ensure snapshot immutability
         var first = snap[0].Count;
         var moreTasks = Enumerable.Range(0, 5).Select(i => Task.Run(() => lvls.Add(0, File($"g{i}"))));
         await Task.WhenAll(moreTasks);
-        snap[0].Count.Should().Be(first);
+        Assert.Equal(first, snap[0].Count);
     }
 
     [Fact]
@@ -150,7 +149,7 @@ public class LevelsTests
         var snap = lvls.SnapshotLevels();
 
         // Assert
-        taken.Should().HaveCount(3);
-        snap[0].Should().BeEmpty();
+        Assert.Equal(3, taken.Count);
+        Assert.Empty(snap[0]);
     }
 }

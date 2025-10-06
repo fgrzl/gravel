@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Gravel.Abstractions;
 using Gravel.Engine;
 using Gravel.TestHelpers;
@@ -44,8 +43,8 @@ public class CompactorTests
 
         // Assert
         var keys = list.Select(e => Encoding.UTF8.GetString(e.Key.Span)).ToList();
-        keys.Should().Equal("a", "b", "c", "d");
-        keys.Count(k => k == "c").Should().Be(1); // deduplicated
+        Assert.Equal(new[] { "a", "b", "c", "d" }, keys);
+        Assert.Equal(1, keys.Count(k => k == "c")); // deduplicated
     }
 
     [Fact]
@@ -60,7 +59,7 @@ public class CompactorTests
             list.Add(e);
 
         // Assert
-        list.Should().BeEmpty();
+        Assert.Empty(list);
     }
 
     [Fact]
@@ -74,13 +73,13 @@ public class CompactorTests
         // Act
         var act = async () =>
         {
-            await foreach (var _ in Compactor.MergeLevelFilesAsync([f], cts.Token))
+            await foreach (var _ in Compactor.MergeLevelFilesAsync(new List<SstFile> { f }, cts.Token))
             {
             }
         };
 
         // Assert
-        await act.Should().ThrowAsync<OperationCanceledException>();
+        await Assert.ThrowsAsync<OperationCanceledException>(act);
     }
 
     [Fact]
@@ -97,7 +96,7 @@ public class CompactorTests
             list.Add(e);
 
         // Assert: only one entry with key k
-        list.Count.Should().Be(1);
-        Encoding.UTF8.GetString(list[0].Key.Span).Should().Be("k");
+        Assert.Equal(1, list.Count);
+        Assert.Equal("k", Encoding.UTF8.GetString(list[0].Key.Span));
     }
 }

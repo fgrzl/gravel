@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using FluentAssertions;
 using Xunit;
 
 namespace Gravel.Internals;
@@ -14,7 +13,7 @@ public class BufTests
         // Act
         Action a1 = () => Buf.Rent(-1);
         // Assert
-        a1.Should().Throw<ArgumentOutOfRangeException>();
+        Assert.Throws<ArgumentOutOfRangeException>(a1);
     }
 
     [Fact]
@@ -24,7 +23,7 @@ public class BufTests
         // Act
         Action a2 = () => Buf.AsyncRent(-1);
         // Assert
-        a2.Should().Throw<ArgumentOutOfRangeException>();
+        Assert.Throws<ArgumentOutOfRangeException>(a2);
     }
 
     [Fact]
@@ -33,8 +32,8 @@ public class BufTests
         // Arrange
         var scope = Buf.Rent(0);
         // Act / Assert
-        scope.Span.Length.Should().Be(0);
-        scope.Buffer.Should().BeNull();
+        Assert.Equal(0, scope.Span.Length);
+        Assert.Null(scope.Buffer);
         scope.Dispose(); // no-op
     }
 
@@ -44,11 +43,11 @@ public class BufTests
         // Arrange
         using var scope = Buf.AsyncRent(0);
         // Act / Assert
-        scope.Memory.Length.Should().Be(0);
-        scope.Span.Length.Should().Be(0);
+        Assert.Equal(0, scope.Memory.Length);
+        Assert.Equal(0, scope.Span.Length);
         // Buffer returns an empty array for callers
-        scope.Buffer.Should().NotBeNull();
-        scope.Buffer.Length.Should().Be(0);
+        Assert.NotNull(scope.Buffer);
+        Assert.Equal(0, scope.Buffer.Length);
     }
 
     [Fact]
@@ -57,17 +56,17 @@ public class BufTests
         // Arrange
         var len = 32;
         var scope = Buf.Rent(len, true);
-        scope.Buffer.Should().NotBeNull();
+        Assert.NotNull(scope.Buffer);
         scope.Span.Fill(0x7F);
         var arr = scope.Buffer!; // capture reference
-        arr[0].Should().Be(0x7F);
+        Assert.Equal(0x7F, arr[0]);
 
         // Act
         scope.Dispose();
 
         // Assert
-        arr[0].Should().Be(0);
-        arr.Take(len).Should().OnlyContain(b => b == 0);
+        Assert.Equal(0, arr[0]);
+        Assert.All(arr.Take(len), b => Assert.Equal(0, b));
     }
 
     [Fact]
@@ -77,15 +76,15 @@ public class BufTests
         var len = 24;
         using var scope = Buf.AsyncRent(len, true);
         var arr = scope.Buffer;
-        arr.Should().NotBeNull();
+        Assert.NotNull(arr);
         scope.Span.Fill(0x3C);
-        arr![0].Should().Be(0x3C);
+        Assert.Equal(0x3C, arr![0]);
 
         // Act
         scope.Dispose();
 
         // Assert
-        arr.Take(len).Should().OnlyContain(b => b == 0);
+        Assert.All(arr.Take(len), b => Assert.Equal(0, b));
     }
 
     [Fact]
@@ -102,7 +101,7 @@ public class BufTests
 
         // Assert
         // since default is false, array should retain the value
-        arr[0].Should().Be(0x5A);
+        Assert.Equal(0x5A, arr[0]);
     }
 
     [Fact]
@@ -137,9 +136,9 @@ public class BufTests
             // Act
             Span<byte> s = scope;
             // Assert
-            s.Length.Should().Be(10);
+            Assert.Equal(10, s.Length);
             s[0] = 0x11;
-            scope.Span[0].Should().Be(0x11);
+            Assert.Equal(0x11, scope.Span[0]);
         }
         finally
         {
