@@ -51,9 +51,6 @@
   <ItemGroup>
     <Folder Include="Abstractions\Storage\Sst\" />
     <Folder Include="Abstractions\Storage\Wal\" />
-    <Folder Include="Compression\Default\" />
-    <Folder Include="Compression\Snappy\" />
-    <Folder Include="Engine\Managers\" />
     <Folder Include="Internals\Filters\" />
     <Folder Include="Internals\Indexes\" />
     <Folder Include="Storage\FileSystem\Sst\" />

@@ -154,6 +154,32 @@ public sealed class StorageInstance : IAsyncDisposable
     public HybridCloudSSTManager? HybridSST { get; init; }
 
     /// <summary>
+    ///     Gets the WAL for the current mode.
+    /// </summary>
+    public object GetWAL()
+    {
+        return Mode switch
+        {
+            StorageMode.LocalOnly => LocalWAL ?? throw new InvalidOperationException("LocalWAL not initialized"),
+            StorageMode.HybridCloud => HybridWAL ?? throw new InvalidOperationException("HybridWAL not initialized"),
+            _ => throw new InvalidOperationException($"Unknown storage mode: {Mode}")
+        };
+    }
+
+    /// <summary>
+    ///     Gets the SST manager for the current mode.
+    /// </summary>
+    public object GetSSTManager()
+    {
+        return Mode switch
+        {
+            StorageMode.LocalOnly => LocalSST ?? throw new InvalidOperationException("LocalSST not initialized"),
+            StorageMode.HybridCloud => HybridSST ?? throw new InvalidOperationException("HybridSST not initialized"),
+            _ => throw new InvalidOperationException($"Unknown storage mode: {Mode}")
+        };
+    }
+
+    /// <summary>
     ///     Disposes all storage resources.
     /// </summary>
     public async ValueTask DisposeAsync()
