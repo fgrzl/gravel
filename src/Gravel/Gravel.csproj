@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net9.0;net8.0</TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -43,8 +43,23 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.9" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.9" />
-    <PackageReference Include="System.IO.Hashing" Version="9.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.1" />
+    <PackageReference Include="System.IO.Hashing" Version="10.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Abstractions\Storage\Sst\" />
+    <Folder Include="Abstractions\Storage\Wal\" />
+    <Folder Include="Compression\Default\" />
+    <Folder Include="Compression\Snappy\" />
+    <Folder Include="Engine\Managers\" />
+    <Folder Include="Internals\Filters\" />
+    <Folder Include="Internals\Indexes\" />
+    <Folder Include="Storage\FileSystem\Sst\" />
+    <Folder Include="Storage\FileSystem\Wal\" />
+    <Folder Include="Storage\InMemory\Sst\" />
+    <Folder Include="Storage\InMemory\Wal\" />
+    <Folder Include="Storage\Shared\" />
   </ItemGroup>
 </Project>

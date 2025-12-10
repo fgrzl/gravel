@@ -1,23 +1,24 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net9.0</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework>
 		<OutputType>Exe</OutputType>
 
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <Compile Remove="D:\packages\.nuget\microsoft.visualstudio.diagnosticshub.benchmarkdotnetdiagnosers\18.0.36421.1\contentFiles\cs\any\BenchmarkProfilerAgentConfig.g.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<PackageReference Include="BenchmarkDotNet" Version="0.15.4" />
-		<PackageReference Include="Microsoft.Extensions.Options" Version="9.0.9" />
-		<PackageReference Include="Microsoft.VisualStudio.DiagnosticsHub.BenchmarkDotNetDiagnosers" Version="18.0.36525.3" />
+		<PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+		<PackageReference Include="Microsoft.Extensions.Options" Version="10.0.1" />
+		<PackageReference Include="Microsoft.VisualStudio.DiagnosticsHub.BenchmarkDotNetDiagnosers" Version="18.3.36726.2" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\Gravel\Gravel.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Tier1Hotpath\" />
+	  <Folder Include="Tier3System\" />
 	</ItemGroup>
 
 </Project>
